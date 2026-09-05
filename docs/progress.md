@@ -18,7 +18,7 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 | B6      | Frontend: layout, sahifalar, dizayn tizimi | ✅    | Next.js 15 App Router, 4 til, dark mode                 |
 | B7      | Standartlar: SCORM, xAPI, LTI, QTI, GOST   | ✅    | RTE, LRS, Tool Provider, DOCX/XLSX GOST 7.32            |
 | B8      | Integratsiyalar (adapter + mock)           | ✅    | HEMIS, One ID, E-IMZO, SMS, Telegram, BBB/Jitsi, to'lov |
-| B9      | Testlar va sifat nazorati                  | ✅    | 248 unit + 43 e2e + 35 smoke + 21 oqim, qamrov 85.55%   |
+| B9      | Testlar va sifat nazorati                  | ✅    | 256 unit + 43 e2e + 35 smoke + 21 oqim, qamrov 85.55%   |
 | B10     | Hujjatlar, deploy, yakuniy tekshiruv       | ✅    | 7 ta hujjat (o'zbekcha), `docker compose up`            |
 
 ---
@@ -28,7 +28,7 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 | Ko'rsatkich                         | Qiymat                                | Talab             |
 | ----------------------------------- | ------------------------------------- | ----------------- |
 | Unit testlar (shared)               | 73 ✅                                 | —                 |
-| Unit/integratsion testlar (API)     | 150 ✅                                | —                 |
+| Unit/integratsion testlar (API)     | 158 ✅                                | —                 |
 | Unit testlar (web)                  | 25 ✅                                 | —                 |
 | Qamrov (statements)                 | **85.55%**                            | ≥ 70%             |
 | Qamrov (functions / lines)          | 87.27% / 86.74%                       | ≥ 70%             |
@@ -46,6 +46,9 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 | Docker (prod) — ilova xotirasi      | ~300 MB (api+web+worker)              | —                 |
 | Hujjat oqimi tekshiruvi             | **13/13** ✅                          | —                 |
 | Navbat oqimi tekshiruvi             | **8/8** ✅                            | —                 |
+| API p95 (60 VU, 1 instansiya)       | **258 ms**                            | < 300 ms (NF-01)  |
+| Tezlik (60 VU, 1 instansiya)        | **319 RPS**                           | —                 |
+| Gorizontal masshtablanish           | 1→2 instansiya: 258 → **344 RPS**     | §5 (stateless)    |
 
 > **Lighthouse va autentifikatsiya:** Lighthouse har navigatsiyada yangi brauzer
 > konteksti ochadi, shu sababli `httpOnly` refresh cookie yo'qoladi va sahifa
@@ -82,6 +85,7 @@ Testlar va o'lchovlar **haqiqiy** nuqsonlarni ochdi — hammasi tuzatildi:
 | 18  | `PROTOCOL` va `SYLLABUS` shablonlari e'lon qilingan, ammo yozilmagan               | Barcha shablonlarni sinash        | Ikkala DOCX quruvchisi yozildi (§16)               |
 | 19  | 83 ta API xatolik kalitidan 40 tasining tarjimasi yo'q edi                         | API/katalog solishtiruvi          | 40 kalit x 4 til + tekshiruvchiga yangi qoida      |
 | 20  | `GET /certificates/templates` yo'q edi — `templateId` ni bilib bo'lmasdi           | Sertifikat berish oqimi           | Endpoint qo'shildi                                 |
+| 21  | Rolga qarab rate limit AMALDA ishlamasdi: `checkApi` hech qayerdan chaqirilmasdi   | Yuk sinoviga tayyorgarlik         | `RateLimitGuard` + 8 ta test (§8)                  |
 
 ---
 
@@ -113,6 +117,7 @@ npm run verify                  # format + lint + tiplar + TODO + i18n + testlar
 node scripts/smoke.mjs          # 35 ta uchdan-uchgacha tekshiruv
 npm run check:documents         # hujjat va sertifikat oqimi (13 ta)
 npm run check:queues            # navbat orqali xat va PDF (8 ta)
+npm run load-test               # NF-01/NF-02 o'lchovi
 npm run test:e2e                # 43 ta Playwright testi
 ```
 
@@ -124,8 +129,10 @@ Bular loyiha doirasidan tashqarida, lekin real foydalanish uchun zarur:
 
 1. **Real integratsiya kalitlari** — HEMIS, One ID, E-IMZO, Eskiz SMS uchun
    `.env` da `mock` rejimini `live` ga almashtirish va sinov muhitida tekshirish.
-2. **Yuk sinovi** — NF-02 (2 000 foydalanuvchi / 500 RPS) k6 yoki Artillery bilan
-   ishlab chiqarish konfiguratsiyasida o'lchanishi kerak.
+2. **Yuk sinovini ishlab chiqarish apparatida takrorlash** — sinov mashinasida
+   o'lchov bajarildi (`docs/load-test.md`): bitta instansiya ~300 RPS ni
+   p95 < 300 ms bilan xizmat qiladi, ikkinchi instansiya tezlikni oshiradi.
+   500 RPS ni yakuniy tasdiqlash alohida serverda, 2–3 instansiya bilan.
 3. **Kirill katalogini tarjimon ko'rigi** — `uz-Cyrl.json` transliteratsiya
    orqali hosil qilingan (A-16), atamalar filologik tasdiqdan o'tishi lozim.
 4. **Zaxira nusxani tiklash mashqi** — `docs/deploy.md` §5.3 dagi haftalik

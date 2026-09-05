@@ -27,7 +27,20 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const API = process.env.API_URL ?? 'http://localhost:4000/api/v1';
+/**
+ * Bir nechta API instansiyasi bo'lsa yuk ular orasida teng taqsimlanadi
+ * (gorizontal masshtablanish tekshiruvi, §5). Nginx ortida bitta manzil
+ * yetarli; bu yerda esa instansiyalarni to'g'ridan-to'g'ri solishtirish mumkin:
+ *
+ *   API_URLS=http://localhost:4000/api/v1,http://localhost:4001/api/v1
+ */
+const API_URLS = (process.env.API_URLS ?? process.env.API_URL ?? 'http://localhost:4000/api/v1')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+/** Sozlash bosqichi (kirish, ro'yxatlar) har doim birinchi instansiya orqali. */
+const API = API_URLS[0];
 const VUS = Number(process.env.VUS ?? 50);
 const DURATION_SECONDS = Number(process.env.DURATION ?? 30);
 const WARMUP_SECONDS = Number(process.env.WARMUP ?? 5);
@@ -193,13 +206,13 @@ function record(name, durationMs, status) {
   else entry.failed += 1;
 }
 
-async function runVirtualUser(token, context, deadline, pacingMs, collecting) {
+async function runVirtualUser(token, context, deadline, pacingMs, collecting, baseUrl) {
   while (Date.now() < deadline) {
     const scenario = pickScenario(Math.random());
     const startedAt = performance.now();
 
     try {
-      const response = await fetch(`${API}${scenario.path(context)}`, {
+      const response = await fetch(`${baseUrl}${scenario.path(context)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await response.arrayBuffer();
@@ -225,7 +238,7 @@ async function runVirtualUser(token, context, deadline, pacingMs, collecting) {
 console.log(
   `Yuk sinovi: ${VUS} virtual foydalanuvchi, ${DURATION_SECONDS} s (+${WARMUP_SECONDS} s isitish)`,
 );
-console.log(`Manzil: ${API}`);
+console.log(`Manzil: ${API_URLS.join(', ')} (${API_URLS.length} ta instansiya)`);
 if (TARGET_RPS) console.log(`Maqsadli tezlik: ${TARGET_RPS} RPS`);
 
 const logins = await collectStudentLogins(VUS);
@@ -239,18 +252,33 @@ console.log(`Seed dan ${logins.length} ta talaba topildi — yuk shular ustiga t
  * ko'rinadi. Shuning uchun kontekst sessiyaga bog'lanadi.
  */
 const sessions = [];
-for (let index = 0; index < VUS; index += 1) {
-  const { token, login: loginValue } = await loginWithFallback(logins, index);
+let skipped = 0;
+
+for (let index = 0; sessions.length < VUS && index < logins.length; index += 1) {
+  const { token } = await loginWithFallback(logins, index);
 
   const own = await fetch(`${API}/courses?limit=1`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const ownBody = await own.json();
   const courseId = ownBody.data?.[0]?.id;
-  if (!courseId) throw new Error(`${loginValue}: ko'rinadigan kurs topilmadi`);
+
+  // Seed da ba'zi talabalar hech qanday kursga yozilmagan — ular ssenariyga
+  // yaramaydi (har so'rov 404 bilan tugab, o'lchovni buzardi).
+  if (!courseId) {
+    skipped += 1;
+    continue;
+  }
 
   sessions.push({ token, context: { courseId } });
 }
+
+if (sessions.length < VUS) {
+  console.log(
+    `Diqqat: faqat ${sessions.length} ta yaroqli sessiya yig'ildi (${skipped} ta talaba kurssiz).`,
+  );
+}
+if (skipped > 0) console.log(`Kursga yozilmagan ${skipped} ta talaba o'tkazib yuborildi.`);
 saveTokenCache();
 console.log(`${sessions.length} ta sessiya ochildi.`);
 
@@ -282,8 +310,16 @@ const collecting = () => Date.now() >= warmupUntil;
 console.log('Isitish...');
 const startedAt = Date.now();
 await Promise.all(
-  sessions.map((session) =>
-    runVirtualUser(session.token, session.context, deadline, pacingMs, collecting),
+  sessions.map((session, index) =>
+    runVirtualUser(
+      session.token,
+      session.context,
+      deadline,
+      pacingMs,
+      collecting,
+      // Instansiyalar bo'yicha aylanma taqsimot (Nginx round-robin ga taqlid)
+      API_URLS[index % API_URLS.length],
+    ),
   ),
 );
 const elapsedSeconds = (Date.now() - warmupUntil) / 1000;
