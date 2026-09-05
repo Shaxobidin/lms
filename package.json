@@ -1,0 +1,56 @@
+{
+  "name": "qdu-lms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Qo'qon Davlat Universiteti — O'quv jarayonini boshqarish tizimi (LMS)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@lms/shared && npm run build --workspace=@lms/api && npm run build --workspace=@lms/web",
+    "build:shared": "npm run build --workspace=@lms/shared",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev --workspace=@lms/api\" \"npm run dev --workspace=@lms/web\"",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml}\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:cov": "npm run test:cov --workspace=@lms/api",
+    "test:e2e": "npm run test:e2e --workspace=@lms/web",
+    "db:generate": "npm run db:generate --workspace=@lms/api",
+    "db:migrate": "npm run db:migrate --workspace=@lms/api",
+    "db:deploy": "npm run db:deploy --workspace=@lms/api",
+    "db:seed": "npm run db:seed --workspace=@lms/api",
+    "db:reset": "npm run db:reset --workspace=@lms/api",
+    "openapi": "npm run openapi --workspace=@lms/api",
+    "check:todo": "node scripts/check-no-todo.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run check:todo && npm run check:i18n && npm run test",
+    "check:documents": "node scripts/check-documents.mjs",
+    "check:queues": "node scripts/check-queues.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "argon2@0.41.1": true,
+    "esbuild@0.21.5": true,
+    "msgpackr-extract@3.0.4": true
+  }
+}

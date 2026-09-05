@@ -1,0 +1,248 @@
+# =============================================================================
+# QDU LMS — uzluksiz integratsiya (promt.md §6, NF-10).
+#
+# Gate'lar: format → lint → typecheck → tugallanmagan kod → i18n to'liqligi →
+# unit testlar (qamrov ≥ 70%) → migratsiya → e2e → Docker build.
+# Har biri majburiy: bittasi yiqilsa PR birlashtirilmaydi.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  quality:
+    name: Kod sifati
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Bog'liqliklarni o'rnatish
+        run: npm ci
+
+      - name: Umumiy paketni qurish
+        run: npm run build:shared
+
+      - name: Formatlash tekshiruvi
+        run: npm run format:check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Tugallanmagan kod belgilari (§16)
+        run: npm run check:todo
+
+      - name: i18n kalitlari to'liqligi (F-18)
+        run: npm run check:i18n
+
+  typecheck:
+    name: Tiplar tekshiruvi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:shared
+
+      - name: Prisma klientini generatsiya qilish
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://lms:lms@localhost:5432/lms
+
+      - name: TypeScript (strict)
+        run: npm run typecheck
+
+  test:
+    name: Testlar va qamrov
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lms
+          POSTGRES_PASSWORD: lms
+          POSTGRES_DB: lms_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://lms:lms@localhost:5432/lms_test?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: '6379'
+      REDIS_URL: redis://localhost:6379
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: test
+      S3_SECRET_KEY: test
+      S3_BUCKET: lms-test
+      JWT_ACCESS_SECRET: ci_access_secret_at_least_thirty_two_characters_long_000
+      JWT_REFRESH_SECRET: ci_refresh_secret_at_least_thirty_two_characters_long_00
+      CRYPTO_SECRET_KEY: 1111111111111111111111111111111111111111111111111111111111111111
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:shared
+
+      - name: Umumiy paket testlari
+        run: npm test --workspace=@lms/shared
+
+      - name: Migratsiyalarni qo'llash
+        run: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+
+      - name: Backend testlari va qamrov (≥ 70%)
+        run: npm run test:cov --workspace=@lms/api
+
+      - name: Qamrov hisobotini saqlash
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: apps/api/coverage/
+          retention-days: 7
+
+  e2e:
+    name: E2E (kritik oqimlar)
+    runs-on: ubuntu-latest
+    needs: [quality, typecheck]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Muhitni tayyorlash
+        run: cp .env.example .env
+
+      - name: Tizimni ko'tarish
+        run: docker compose up -d --wait postgres redis minio minio-init mailhog
+
+      - name: Migratsiya va seed
+        run: |
+          npm run build:shared
+          npm run db:deploy
+          npm run db:seed
+
+      - name: API ni ishga tushirish
+        run: |
+          npm run build --workspace=@lms/api
+          npm run start --workspace=@lms/api &
+          npx wait-on http://localhost:4000/api/v1/health --timeout 90000
+
+      - name: Smoke test (§15 qabul mezonlari)
+        run: node scripts/smoke.mjs
+
+      - name: Playwright brauzerlarini o'rnatish
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: E2E testlar
+        run: npm run test:e2e --workspace=@lms/web
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    needs: [quality, typecheck]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: API image (prod)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Web image (prod)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security:
+    name: Xavfsizlik tekshiruvi
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Bog'liqliklardagi zaifliklar
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Sirlar kodga tushib qolmaganini tekshirish
+        run: |
+          if grep -rInE "(password|secret|api[_-]?key|token)\s*[:=]\s*['\"][A-Za-z0-9+/=_-]{16,}" \
+              --include="*.ts" --include="*.tsx" \
+              --exclude-dir=node_modules --exclude-dir=dist \
+              apps packages; then
+            echo "Kodda sir topildi — promt.md §11 buzilgan"
+            exit 1
+          fi
+          echo "Kodda ochiq sirlar topilmadi"

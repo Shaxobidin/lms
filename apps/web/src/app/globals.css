@@ -1,0 +1,202 @@
+/**
+ * Maqsad: dizayn tokenlari va global uslublar (promt.md §9).
+ *
+ * Rang tizimi: neytral asos + bitta aksent (akademik ko'k). Holat ranglari
+ * semantik. Kontrast WCAG 2.1 AA talablariga muvofiq tekshirilgan.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Yorug' mavzu */
+    --background: 0 0% 100%;
+    --foreground: 222 22% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 22% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 22% 12%;
+
+    /* Aksent: akademik ko'k (#0f4c81) */
+    --primary: 208 79% 28%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 22% 18%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 42%;
+
+    --accent: 210 24% 94%;
+    --accent-foreground: 222 22% 18%;
+
+    /* Semantik holat ranglari */
+    --success: 152 58% 30%;
+    --success-foreground: 0 0% 100%;
+    /* 30% yorqinlik: /15 fonda ham WCAG 2.1 AA (4.5:1) talabini qondiradi */
+    --warning: 32 82% 30%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 68% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 89%;
+    --input: 214 20% 86%;
+    --ring: 208 79% 38%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Qorong'i mavzu — majburiy (§9) */
+    --background: 222 24% 9%;
+    --foreground: 210 20% 94%;
+
+    --card: 222 22% 12%;
+    --card-foreground: 210 20% 94%;
+
+    --popover: 222 22% 12%;
+    --popover-foreground: 210 20% 94%;
+
+    --primary: 205 82% 62%;
+    --primary-foreground: 222 30% 10%;
+
+    --secondary: 217 18% 18%;
+    --secondary-foreground: 210 20% 92%;
+
+    --muted: 217 18% 17%;
+    --muted-foreground: 215 15% 65%;
+
+    --accent: 217 18% 20%;
+    --accent-foreground: 210 20% 94%;
+
+    --success: 152 52% 52%;
+    --success-foreground: 222 30% 10%;
+    --warning: 38 88% 60%;
+    --warning-foreground: 222 30% 10%;
+    /* 70% yorqinlik: /12 fonli nishon va ogohlantirishlarda ham AA (4.5:1) */
+    --destructive: 0 72% 70%;
+    --destructive-foreground: 222 30% 10%;
+
+    --border: 217 18% 22%;
+    --input: 217 18% 26%;
+    --ring: 205 82% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    /* Klaviatura navigatsiyasida sakrash silliq bo'lsin, ammo harakatni
+       kamaytirish sozlamasi hurmat qilinadi (NF-05) */
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  /* Fokus ko'rsatkichi har doim ko'rinadi (WCAG 2.4.7) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Skrin-rider uchun yashirin matn */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Skip-link: klaviatura foydalanuvchilari uchun (WCAG 2.4.1) */
+  .skip-link {
+    @apply absolute left-4 top-4 z-50 -translate-y-24 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground transition-transform;
+  }
+  .skip-link:focus {
+    @apply translate-y-0;
+  }
+}
+
+@layer components {
+  /* Dars kontenti uchun tipografika (o'qituvchi kiritgan HTML) */
+  .prose-lms {
+    @apply text-base leading-relaxed text-foreground;
+  }
+  .prose-lms h1 {
+    @apply mb-3 mt-6 text-2xl font-semibold;
+  }
+  .prose-lms h2 {
+    @apply mb-2 mt-5 text-xl font-semibold;
+  }
+  .prose-lms h3 {
+    @apply mb-2 mt-4 text-lg font-semibold;
+  }
+  .prose-lms p {
+    @apply mb-3;
+  }
+  .prose-lms ul {
+    @apply mb-3 list-disc space-y-1 pl-6;
+  }
+  .prose-lms ol {
+    @apply mb-3 list-decimal space-y-1 pl-6;
+  }
+  .prose-lms a {
+    @apply text-primary underline underline-offset-4;
+  }
+  .prose-lms code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-sm;
+  }
+  .prose-lms pre {
+    @apply mb-3 overflow-x-auto rounded-md bg-muted p-3;
+  }
+  .prose-lms blockquote {
+    @apply mb-3 border-l-2 border-primary/40 pl-4 italic text-muted-foreground;
+  }
+  .prose-lms table {
+    @apply mb-3 w-full border-collapse text-sm;
+  }
+  .prose-lms th,
+  .prose-lms td {
+    @apply border border-border px-2 py-1 text-left;
+  }
+  .prose-lms img {
+    @apply my-3 max-w-full rounded-md;
+  }
+}
+
+/* Chop etishda faqat mazmun qoladi */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+}

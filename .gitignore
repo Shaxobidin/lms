@@ -1,0 +1,25 @@
+node_modules/
+dist/
+build/
+coverage/
+.next/
+out/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+!.env.example
+
+npm-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# generatsiya qilinadigan artefaktlar
+apps/api/src/generated/
+apps/api/openapi.json
+playwright-report/
+test-results/
+storage/
+tmp/
