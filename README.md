@@ -140,6 +140,7 @@ frontend ham bir xil zod sxemalari va ruxsat mantig'idan foydalanadi.
 | `node scripts/smoke.mjs`  | Tizim uchdan-uchgacha ishlashini tekshirish        |
 | `npm run check:documents` | Hujjat va sertifikat oqimi (GOST DOCX, PDF, QR)    |
 | `npm run check:queues`    | Navbat oqimi: xat yuborish va sertifikat PDF       |
+| `npm run load-test`       | Yuk sinovi: p95 kechikish va tezlik (NF-01/NF-02)  |
 
 ---
 
@@ -197,6 +198,7 @@ Har biri **adapter pattern** orqali — real kalitlarsiz ham tizim to'liq ishlay
 | [`docs/teacher-guide.md`](docs/teacher-guide.md)     | O'qituvchi qo'llanmasi                                   |
 | [`docs/student-guide.md`](docs/student-guide.md)     | Talaba qo'llanmasi                                       |
 | [`docs/deploy.md`](docs/deploy.md)                   | Deploy, zaxira nusxa, monitoring                         |
+| [`docs/load-test.md`](docs/load-test.md)             | Yuk sinovi metodikasi va natijalari                      |
 | [`docs/progress.md`](docs/progress.md)               | Bajarilgan ishlar va holat                               |
 | `apps/api/openapi.json`                              | OpenAPI 3.1 spetsifikatsiyasi (155 yo`l, 176 operatsiya) |
 
