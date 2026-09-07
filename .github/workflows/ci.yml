@@ -162,7 +162,11 @@ jobs:
         run: cp .env.example .env
 
       - name: Tizimni ko'tarish
-        run: docker compose up -d --wait postgres redis minio minio-init mailhog
+        # `minio-init` bir martalik konteyner (exit 0) — `--wait` uni "yiqilgan" deb hisoblaydi,
+        # shuning uchun alohida `run` bilan bajariladi
+        run: |
+          docker compose up -d --wait postgres redis minio mailhog
+          docker compose run --rm minio-init
 
       - name: Migratsiya va seed
         run: |
