@@ -296,13 +296,11 @@ Profil → Parolni almashtirish. Yangi parol oxirgi 5 ta paroldan farq qilishi k
 ## Talaba bo'limi (HEMIS uslubi)
 
 Yon paneldagi **Talaba** guruhi HEMIS'dagi kabi tuzilgan:
+("Mening kurslarim", "Dars jadvali" va "Topshiriqlar" umumiy guruhlarda — takrorlanmaydi):
 
 | Band                        | Nima qiladi                                                                                                                                                                                                      |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fan tanlov**              | O'quv rejangizdagi joriy/kelgusi semestr tanlov fanlari va ular bo'yicha ochiq kurslar. "Tanlash" — yoziladi, baho qo'yilmaguncha "Bekor qilish" mumkin                                                          |
-| **Mening fanlarim**         | Yozilgan kurslar                                                                                                                                                                                                 |
-| **Dars jadvali**            | Mashg'ulotlar jadvali                                                                                                                                                                                            |
-| **Vazifalar**               | Topshiriqlar                                                                                                                                                                                                     |
 | **Qayta o'qish**            | Yakuniy natijasi o'tish balidan past kurslar; bir tugma bilan qayta o'qishga ariza                                                                                                                               |
 | **Yakuniy**                 | Har kurs bo'yicha JN/ON/YN taqsimoti, yakuniyga kirish huquqi (JN+ON chegarasi), yakuniy imtihonlar va eng yaxshi natija                                                                                         |
 | **Individual shaxsiy reja** | Mutaxassislik o'quv rejasi semestrlar bo'yicha, har fan holati (o'zlashtirildi / o'qilmoqda / kelgusi) va kreditlar progressi                                                                                    |

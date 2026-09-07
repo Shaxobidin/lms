@@ -107,14 +107,7 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
         icon: ListChecks,
         roles: ['STUDENT'],
       },
-      { href: '/my-courses', labelKey: 'nav.studentSubjects', icon: BookOpen, roles: ['STUDENT'] },
-      { href: '/schedule', labelKey: 'nav.schedule', icon: CalendarDays, roles: ['STUDENT'] },
-      {
-        href: '/assignments',
-        labelKey: 'nav.studentTasks',
-        icon: ClipboardList,
-        roles: ['STUDENT'],
-      },
+      // "Mening fanlarim", "Dars jadvali", "Vazifalar" umumiy guruhlarda bor — takrorlanmaydi
       {
         href: '/student/retakes',
         labelKey: 'nav.studentRetakes',
@@ -346,15 +339,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const visibleGroups = useMemo(() => {
     if (!user) return [];
+    // Bir manzil bir nechta guruhda bo'lishi mumkin (masalan, "Dars jadvali" umumiy
+    // va "Talaba" guruhida) — birinchi uchragani qoladi, takrorlar olib tashlanadi
+    const seen = new Set<string>();
     return NAV_GROUPS.map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) =>
+      items: group.items.filter((item) => {
+        const visible =
           (item.always ||
             (item.permissions ?? []).some((permission) => can(permission)) ||
             (item.roles ?? []).some((role) => user?.roles.includes(role as never))) &&
-          (!item.settingKey || siteSettings.enabled(item.settingKey)),
-      ),
+          (!item.settingKey || siteSettings.enabled(item.settingKey));
+        if (!visible || seen.has(item.href)) return false;
+        seen.add(item.href);
+        return true;
+      }),
     })).filter((group) => group.items.length > 0);
   }, [user, can]);
 
