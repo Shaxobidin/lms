@@ -19,6 +19,7 @@ import { ScopeResolverService } from './auth/scope-resolver.service';
 import { IdempotencyService } from './http/idempotency.service';
 import { RateLimitService } from './http/rate-limit.service';
 import { EventsService } from './events/events.service';
+import { SiteSettingsService } from './settings/site-settings.service';
 
 @Global()
 @Module({
@@ -64,6 +65,7 @@ import { EventsService } from './events/events.service';
     IdempotencyService,
     RateLimitService,
     EventsService,
+    SiteSettingsService,
   ],
   exports: [
     PrismaService,
@@ -78,6 +80,7 @@ import { EventsService } from './events/events.service';
     IdempotencyService,
     RateLimitService,
     EventsService,
+    SiteSettingsService,
     JwtModule,
   ],
 })

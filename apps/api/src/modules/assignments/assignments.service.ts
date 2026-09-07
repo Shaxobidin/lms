@@ -9,7 +9,9 @@ import {
   applyLatePenalty,
   round2,
   type CreateAssignmentInput,
+  type UpdateAssignmentInput,
   type CreateRubricInput,
+  type UpdateRubricInput,
   type CreateSubmissionInput,
   type GradeSubmissionInput,
   type PeerReviewInput,
@@ -67,19 +69,179 @@ export class AssignmentsService {
     return rubric;
   }
 
+  /**
+   * Kurs rubrikalari.
+   *
+   * Har bir rubrika bilan birga uning QULFLANGANI qaytariladi: agar mezonlar
+   * bo'yicha allaqachon ball qo'yilgan bo'lsa, tuzilmani o'zgartirish
+   * qo'yilgan baholarni buzadi (`RubricScore.criterionId` ga bog'langan).
+   * Interfeys shu bayroqqa qarab tahrirlashni cheklaydi.
+   */
   async listRubrics(courseId: string) {
-    return this.prisma.db.rubric.findMany({
+    const rubrics = await this.prisma.db.rubric.findMany({
       where: { courseId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        totalPoints: true,
+        criteria: {
+          orderBy: { position: 'asc' },
+          select: { id: true, title: true, description: true, maxPoints: true, levels: true },
+        },
+        _count: { select: { assignments: true } },
+      },
+    });
+
+    if (rubrics.length === 0) return [];
+
+    // Ball qo'yilgan mezonlar bitta so'rov bilan aniqlanadi (N+1 emas)
+    const criterionIds = rubrics.flatMap((rubric) => rubric.criteria.map((item) => item.id));
+    const scored = criterionIds.length
+      ? await this.prisma.rubricScore.findMany({
+          where: { criterionId: { in: criterionIds } },
+          distinct: ['criterionId'],
+          select: { criterionId: true },
+        })
+      : [];
+    const scoredIds = new Set(scored.map((row) => row.criterionId));
+
+    return rubrics.map((rubric) => ({
+      ...rubric,
+      locked: rubric.criteria.some((criterion) => scoredIds.has(criterion.id)),
+    }));
+  }
+
+  /**
+   * Rubrikani yangilash.
+   *
+   * Ball qo'yilgan rubrikada faqat nom va tavsif o'zgaradi: mezonlar
+   * tuzilmasiga tegish mavjud baholarni yaroqsiz qiladi (§16 — ma'lumot
+   * yo'qolishiga yo'l qo'yilmaydi). Tuzilma o'zgargani `id`, ball va
+   * darajalar bo'yicha solishtiriladi.
+   */
+  async updateRubric(id: string, input: UpdateRubricInput, actor: RequestUser) {
+    const existing = await this.prisma.db.rubric.findUnique({
+      where: { id },
       select: {
         id: true,
         title: true,
         totalPoints: true,
         criteria: {
           orderBy: { position: 'asc' },
-          select: { id: true, title: true, description: true, maxPoints: true, levels: true },
+          select: { id: true, maxPoints: true, levels: true },
         },
       },
     });
+    if (!existing) throw AppException.notFound('rubric', id);
+
+    const scored = await this.prisma.rubricScore.findFirst({
+      where: { criterionId: { in: existing.criteria.map((item) => item.id) } },
+      select: { id: true },
+    });
+
+    if (scored) {
+      const sameStructure =
+        input.criteria.length === existing.criteria.length &&
+        input.criteria.every((criterion) => {
+          const previous = existing.criteria.find((item) => item.id === criterion.id);
+          return (
+            previous !== undefined &&
+            Number(previous.maxPoints) === criterion.maxPoints &&
+            JSON.stringify(previous.levels) === JSON.stringify(criterion.levels)
+          );
+        });
+
+      if (!sameStructure) throw AppException.businessRule('errors.rubric_has_grades');
+    }
+
+    const totalPoints = input.criteria.reduce((sum, criterion) => sum + criterion.maxPoints, 0);
+    const keptIds = input.criteria.map((criterion) => criterion.id).filter(Boolean) as string[];
+
+    await this.prisma.$transaction(async (tx) => {
+      // Ro'yxatdan chiqarilgan mezonlar mantiqiy o'chiriladi — qo'yilgan
+      // ballar tarixda saqlanib qolishi uchun jismonan o'chirilmaydi (P6)
+      await tx.rubricCriterion.updateMany({
+        where: {
+          rubricId: id,
+          deletedAt: null,
+          ...(keptIds.length ? { id: { notIn: keptIds } } : {}),
+        },
+        data: { deletedAt: new Date() },
+      });
+
+      for (const [index, criterion] of input.criteria.entries()) {
+        const data = {
+          title: this.sanitizer.sanitizeLocalized(criterion.title) as never,
+          description: this.sanitizer.sanitizeLocalized(criterion.description ?? {}) as never,
+          maxPoints: criterion.maxPoints,
+          position: index,
+          levels: criterion.levels as never,
+        };
+
+        if (criterion.id) await tx.rubricCriterion.update({ where: { id: criterion.id }, data });
+        else await tx.rubricCriterion.create({ data: { ...data, rubricId: id } });
+      }
+
+      await tx.rubric.update({
+        where: { id },
+        data: {
+          title: this.sanitizer.sanitizeLocalized(input.title) as never,
+          description: this.sanitizer.sanitizeLocalized(input.description ?? {}) as never,
+          totalPoints: Math.round(totalPoints),
+        },
+      });
+    });
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'rubric.update',
+      resource: 'rubric',
+      resourceId: id,
+      before: { totalPoints: existing.totalPoints, criteria: existing.criteria.length },
+      after: { totalPoints: Math.round(totalPoints), criteria: input.criteria.length },
+    });
+
+    return { id, totalPoints: Math.round(totalPoints), criteria: input.criteria.length };
+  }
+
+  /**
+   * Rubrikani o'chirish (mantiqiy).
+   *
+   * Topshiriqqa biriktirilgan rubrika o'chirilmaydi: aks holda topshiriqning
+   * baholash mezoni yo'qoladi. Avval topshiriqdan uzish kerak.
+   */
+  async deleteRubric(id: string, actor: RequestUser) {
+    const rubric = await this.prisma.db.rubric.findUnique({
+      where: { id },
+      select: { id: true, _count: { select: { assignments: true } } },
+    });
+    if (!rubric) throw AppException.notFound('rubric', id);
+
+    if (rubric._count.assignments > 0) {
+      throw AppException.businessRule('errors.rubric_in_use', {
+        assignments: rubric._count.assignments,
+      });
+    }
+
+    const deletedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.rubricCriterion.updateMany({
+        where: { rubricId: id, deletedAt: null },
+        data: { deletedAt },
+      }),
+      this.prisma.rubric.update({ where: { id }, data: { deletedAt } }),
+    ]);
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'rubric.delete',
+      resource: 'rubric',
+      resourceId: id,
+    });
+
+    return { deleted: true };
   }
 
   // --- Topshiriq ------------------------------------------------------------
@@ -143,6 +305,84 @@ export class AssignmentsService {
     return assignment;
   }
 
+  /**
+   * Topshiriq sozlamalarini yangilash (Moodle "Edit settings"). Tur va nazorat
+   * turi o'zgarmaydi — ular jurnal ustuniga bog'langan. Rubrika shu kursniki
+   * bo'lishi shart.
+   */
+  async update(id: string, input: UpdateAssignmentInput, actor: RequestUser) {
+    const existing = await this.prisma.db.assignment.findUnique({
+      where: { id },
+      select: { id: true, courseId: true, isPublished: true },
+    });
+    if (!existing) throw AppException.notFound('assignment', id);
+
+    if (input.rubricId) {
+      const rubric = await this.prisma.db.rubric.findUnique({
+        where: { id: input.rubricId },
+        select: { courseId: true },
+      });
+      if (!rubric || rubric.courseId !== existing.courseId) {
+        throw AppException.validation([
+          { field: 'rubricId', code: 'validation.rubric_other_course' },
+        ]);
+      }
+    }
+    if (input.dueAt && input.lateUntil && input.lateUntil <= input.dueAt) {
+      throw AppException.validation([{ field: 'lateUntil', code: 'validation.start_before_end' }]);
+    }
+
+    const assignment = await this.prisma.db.assignment.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined
+          ? { title: this.sanitizer.sanitizeLocalized(input.title) as never }
+          : {}),
+        ...(input.description !== undefined
+          ? { description: this.sanitizer.sanitizeLocalized(input.description) as never }
+          : {}),
+        ...(input.maxScore !== undefined ? { maxScore: input.maxScore } : {}),
+        ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}),
+        ...(input.lateUntil !== undefined ? { lateUntil: input.lateUntil } : {}),
+        ...(input.latePenaltyPercent !== undefined
+          ? { latePenaltyPercent: input.latePenaltyPercent }
+          : {}),
+        ...(input.maxAttempts !== undefined ? { maxAttempts: input.maxAttempts } : {}),
+        ...(input.rubricId !== undefined ? { rubricId: input.rubricId } : {}),
+        ...(input.peerReviewEnabled !== undefined
+          ? { peerReviewEnabled: input.peerReviewEnabled }
+          : {}),
+        ...(input.peerReviewCount !== undefined ? { peerReviewCount: input.peerReviewCount } : {}),
+        ...(input.peerReviewDueAt !== undefined ? { peerReviewDueAt: input.peerReviewDueAt } : {}),
+        ...(input.plagiarismCheck !== undefined ? { plagiarismCheck: input.plagiarismCheck } : {}),
+        ...(input.allowedMimeTypes !== undefined
+          ? { allowedMimeTypes: input.allowedMimeTypes }
+          : {}),
+        ...(input.maxFileSizeMb !== undefined ? { maxFileSizeMb: input.maxFileSizeMb } : {}),
+        ...(input.maxFiles !== undefined ? { maxFiles: input.maxFiles } : {}),
+        ...(input.isPublished !== undefined ? { isPublished: input.isPublished } : {}),
+      },
+      select: { id: true, title: true, dueAt: true, maxScore: true, isPublished: true },
+    });
+
+    if (input.isPublished && !existing.isPublished) {
+      await this.events.publish({
+        type: EVENT_TYPES.ANNOUNCEMENT,
+        courseId: existing.courseId,
+        payload: { assignmentId: id, titleKey: 'events.assignment_published' },
+      });
+    }
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'assignment.update',
+      resource: 'assignment',
+      resourceId: id,
+      after: input as Record<string, unknown>,
+    });
+    return assignment;
+  }
+
   async listForCourse(courseId: string, actor: RequestUser) {
     const isStudent = actor.scope.enrolledCourseIds.includes(courseId);
 
@@ -182,6 +422,63 @@ export class AssignmentsService {
     });
 
     return assignments;
+  }
+
+  /**
+   * Bitta topshiriq — baholash ish o'rni uchun (F-06, F-08).
+   *
+   * Rubrika mezonlari to'liq qaytariladi: o'qituvchi interfeysi ballarni
+   * mezon bo'yicha qo'yishi va jami ballni mijozda ko'rsatishi kerak.
+   * Talaba nashr etilmagan topshiriqni ko'rmaydi.
+   */
+  async getAssignment(id: string, actor: RequestUser) {
+    const assignment = await this.prisma.db.assignment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        courseId: true,
+        title: true,
+        description: true,
+        kind: true,
+        controlType: true,
+        maxScore: true,
+        dueAt: true,
+        lateUntil: true,
+        latePenaltyPercent: true,
+        maxAttempts: true,
+        rubricId: true,
+        peerReviewDueAt: true,
+        allowedMimeTypes: true,
+        maxFileSizeMb: true,
+        maxFiles: true,
+        peerReviewEnabled: true,
+        peerReviewCount: true,
+        plagiarismCheck: true,
+        isPublished: true,
+        course: { select: { id: true, code: true, title: true } },
+        rubric: {
+          select: {
+            id: true,
+            title: true,
+            totalPoints: true,
+            criteria: {
+              orderBy: { position: 'asc' },
+              select: { id: true, title: true, description: true, maxPoints: true, levels: true },
+            },
+          },
+        },
+        _count: { select: { submissions: true } },
+      },
+    });
+
+    if (!assignment) throw AppException.notFound('assignment', id);
+
+    const isStudent = actor.scope.enrolledCourseIds.includes(assignment.courseId);
+    if (isStudent && !assignment.isPublished) {
+      throw AppException.notFound('assignment', id);
+    }
+
+    return assignment;
   }
 
   // --- Topshirish -----------------------------------------------------------

@@ -17,6 +17,17 @@ const nextConfig = {
   // Monorepo: umumiy paket manbadan transpile qilinadi
   transpilePackages: ['@lms/shared'],
 
+  /**
+   * Faqat dev server: kompilyatsiya qilingan sahifalar xotirada uzoq saqlansin.
+   * Standart 60 s dan keyin ishlatilmagan sahifa bo'shatiladi — ketma-ket e2e
+   * testlarda har sahifa qayta "sovuq" kompilyatsiya bo'lib (8 GB mashinada
+   * 10–60 s), testlar vaqt bo'yicha yiqilardi. Production build'ga ta'siri yo'q.
+   */
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 100,
+  },
+
   images: {
     remotePatterns: [
       { protocol: 'http', hostname: 'localhost' },

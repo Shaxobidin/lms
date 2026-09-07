@@ -71,6 +71,8 @@ export interface JobPayloads {
   'maintenance.cleanup_uploads': Record<string, never>;
   'maintenance.expire_attempts': Record<string, never>;
   'maintenance.award_badges': Record<string, never>;
+  /** LTI AGS: baho o'zgarganda platformaga yuborish (§10). */
+  'lti.ags.push': { courseId: string; userId: string; quizId?: string; assignmentId?: string };
 }
 
 export type JobName = keyof JobPayloads;
@@ -95,6 +97,7 @@ export const JOB_QUEUE_MAP: Record<JobName, QueueName> = {
   'maintenance.cleanup_uploads': QUEUES.MAINTENANCE,
   'maintenance.expire_attempts': QUEUES.MAINTENANCE,
   'maintenance.award_badges': QUEUES.MAINTENANCE,
+  'lti.ags.push': QUEUES.MAINTENANCE,
 };
 
 /** Standart qayta urinish siyosati: eksponensial kechikish bilan 3 marta. */

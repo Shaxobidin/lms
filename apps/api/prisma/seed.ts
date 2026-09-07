@@ -213,6 +213,12 @@ async function main(): Promise<void> {
   console.log(`  Sozlamalar: ${settings.length}, feature flags: ${flags.length}`);
 
   // --- 4. Akademik kalendar ------------------------------------------------
+  // Idempotentlik: testlar boshqa yil/semestrni "joriy" qilib qo'ygan bo'lishi mumkin —
+  // `isCurrent` yagona indeksi buzilmasligi uchun avval ular bekor qilinadi
+  await prisma.academicYear.updateMany({
+    where: { isCurrent: true, name: { not: '2026-2027' } },
+    data: { isCurrent: false },
+  });
   const academicYear = await prisma.academicYear.upsert({
     where: { name: '2026-2027' },
     create: {
@@ -229,6 +235,13 @@ async function main(): Promise<void> {
     where: { academicYearId: academicYear.id, number: 1 },
     select: { id: true },
   });
+  await prisma.semester.updateMany({
+    where: { isCurrent: true, NOT: { academicYearId: academicYear.id, number: 1 } },
+    data: { isCurrent: false },
+  });
+  if (existingSemester) {
+    await prisma.semester.update({ where: { id: existingSemester.id }, data: { isCurrent: true } });
+  }
 
   const semester =
     existingSemester ??
@@ -980,6 +993,142 @@ async function main(): Promise<void> {
   console.log(`  Sillabuslar: ${syllabusCount}`);
 
   // --- 10. Kurslar ---------------------------------------------------------
+  // --- O'quv rejalar (HEMIS "Individual shaxsiy reja" va "Fan tanlov") ----------
+  // Har bir mutaxassislik × qabul yili uchun tasdiqlangan o'quv reja: o'z
+  // kafedrasi fanlari + umumiy fanlar semestrlarga taqsimlanadi, har
+  // semestrdagi oxirgi fan — tanlov fani.
+  let curriculumCount = 0;
+  for (const speciality of specialityData) {
+    const years = speciality.level === 'MASTER' ? [2026] : [2024, 2025, 2026];
+    const semesterCount = speciality.level === 'MASTER' ? 4 : 8;
+    const own = subjectData.filter((subject) => subject.dep === speciality.dep);
+    const general = subjectData.filter((subject) => subject.dep !== speciality.dep);
+    const ordered = [...own, ...general];
+    for (const year of years) {
+      const code = `OR-${speciality.code}-${year}`;
+      const curriculum = await prisma.curriculum.upsert({
+        where: { code },
+        create: {
+          code,
+          specialityId: specialityIds.get(speciality.code) as string,
+          name: localized(
+            `${speciality.name['uz-Latn']} o'quv rejasi (${year})`,
+            `${speciality.name['uz-Cyrl']} ўқув режаси (${year})`,
+            `Учебный план: ${speciality.name.ru} (${year})`,
+            `Curriculum: ${speciality.name.en} (${year})`,
+          ) as never,
+          admissionYear: year,
+          totalCredits: ordered.reduce((sum, subject) => sum + subject.credits, 0),
+          status: 'APPROVED',
+          approvedById: demoUserIds.get('mudir@qdu.uz') as string,
+          approvedAt: new Date(`${year}-08-25T00:00:00Z`),
+        },
+        update: { status: 'APPROVED' },
+        select: { id: true },
+      });
+      const perSemester = Math.max(1, Math.ceil(ordered.length / semesterCount));
+      for (const [index, subject] of ordered.entries()) {
+        const semesterNumber = Math.min(semesterCount, Math.floor(index / perSemester) + 1);
+        const positionInSemester = index % perSemester;
+        const subjectId = subjectIds.get(subject.code) as string;
+        await prisma.curriculumSubject.upsert({
+          where: {
+            curriculumId_subjectId_semesterNumber: {
+              curriculumId: curriculum.id,
+              subjectId,
+              semesterNumber,
+            },
+          },
+          create: {
+            curriculumId: curriculum.id,
+            subjectId,
+            semesterNumber,
+            lectureHours: subject.credits * 6,
+            practiceHours: subject.credits * 4,
+            labHours: 0,
+            seminarHours: subject.credits * 2,
+            independentHours: subject.credits * 18,
+            // Har semestrdagi oxirgi fan tanlov fani (kafedradan tashqari bo'lsa)
+            isElective: positionInSemester === perSemester - 1 && subject.dep !== speciality.dep,
+          },
+          update: {},
+        });
+      }
+      curriculumCount += 1;
+    }
+  }
+  console.log(`  O'quv rejalar: ${curriculumCount}`);
+
+  // --- So'rovnoma (HEMIS "So'rovnoma") ---------------------------------------------
+  const surveyTitle = localized(
+    "Ta'lim sifati bo'yicha yillik so'rovnoma",
+    'Таълим сифати бўйича йиллик сўровнома',
+    'Ежегодный опрос о качестве образования',
+    'Annual education quality survey',
+  );
+  const existingSurvey = await prisma.survey.findFirst({
+    where: { title: { path: ['uz-Latn'], equals: surveyTitle['uz-Latn'] } },
+    select: { id: true },
+  });
+  if (!existingSurvey) {
+    await prisma.survey.create({
+      data: {
+        title: surveyTitle as never,
+        description: localized(
+          "<p>Javoblaringiz anonim. So'rovnoma 3 daqiqa oladi.</p>",
+          '<p>Жавобларингиз аноним. Сўровнома 3 дақиқа олади.</p>',
+          '<p>Ответы анонимны. Опрос займёт 3 минуты.</p>',
+          '<p>Your answers are anonymous. The survey takes 3 minutes.</p>',
+        ) as never,
+        questions: [
+          {
+            id: 'q1',
+            type: 'SCALE',
+            required: true,
+            text: localized(
+              'Darslarning sifatini qanday baholaysiz?',
+              'Дарсларнинг сифатини қандай баҳолайсиз?',
+              'Как вы оцениваете качество занятий?',
+              'How do you rate the quality of classes?',
+            ),
+          },
+          {
+            id: 'q2',
+            type: 'CHOICE',
+            required: true,
+            text: localized(
+              "Qaysi ta'lim shakli sizga qulay?",
+              'Қайси таълим шакли сизга қулай?',
+              'Какой формат обучения вам удобен?',
+              'Which learning format suits you?',
+            ),
+            options: [
+              localized("An'anaviy", 'Анъанавий', 'Традиционный', 'Traditional'),
+              localized('Aralash', 'Аралаш', 'Смешанный', 'Blended'),
+              localized('Masofaviy', 'Масофавий', 'Дистанционный', 'Online'),
+            ],
+          },
+          {
+            id: 'q3',
+            type: 'TEXT',
+            required: false,
+            text: localized(
+              'Takliflaringiz',
+              'Таклифларингиз',
+              'Ваши предложения',
+              'Your suggestions',
+            ),
+          },
+        ] as never,
+        audienceRoles: ['STUDENT'],
+        isAnonymous: true,
+        isPublished: true,
+        createdById: demoUserIds.get('dekan@qdu.uz') as string,
+      },
+    });
+    console.log("  So'rovnoma: 1 (nashr etilgan)");
+  }
+
   const courseSubjects = subjectData.slice(0, 16);
   const courseIds: string[] = [];
 

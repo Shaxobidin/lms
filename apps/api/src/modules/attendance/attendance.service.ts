@@ -555,6 +555,68 @@ export class AttendanceService {
    * Davomat hisoboti. Bitta agregat so'rov bilan olinadi —
    * har bir talaba uchun alohida so'rov yuborilmaydi (N+1 yo'q).
    */
+  /**
+   * Sessiya ro'yxati (roster) — davomat belgilash interfeysi uchun (F-09).
+   *
+   * Talabalar sessiyaning GURUHIDAN olinadi: davomat guruh jadvaliga bog'langan,
+   * kursga yozilganlar ro'yxatiga emas (bir kursni bir necha guruh o'qiydi).
+   * Har bir talaba bilan birga uning shu sessiyadagi MAVJUD holati qaytariladi,
+   * shuning uchun jurnalni qayta ochganda oldingi belgilar ko'rinadi.
+   */
+  async sessionRoster(classSessionId: string) {
+    const session = await this.prisma.db.classSession.findUnique({
+      where: { id: classSessionId },
+      select: {
+        id: true,
+        date: true,
+        startsAt: true,
+        endsAt: true,
+        room: true,
+        lessonType: true,
+        status: true,
+        topic: true,
+        courseId: true,
+        groupId: true,
+        course: { select: { id: true, code: true, title: true } },
+        group: { select: { id: true, name: true } },
+      },
+    });
+    if (!session) throw AppException.notFound('schedule', classSessionId);
+
+    const [members, marked] = await Promise.all([
+      this.prisma.db.groupMember.findMany({
+        where: { groupId: session.groupId, leftAt: null },
+        select: {
+          user: { select: { id: true, profile: { select: { firstName: true, lastName: true } } } },
+        },
+      }),
+      this.prisma.attendance.findMany({
+        where: { classSessionId },
+        select: { userId: true, status: true, method: true, comment: true, markedAt: true },
+      }),
+    ]);
+
+    const byUser = new Map(marked.map((row) => [row.userId, row]));
+
+    const students = members
+      .map((member) => {
+        const existing = byUser.get(member.user.id);
+        return {
+          userId: member.user.id,
+          firstName: member.user.profile?.firstName ?? '',
+          lastName: member.user.profile?.lastName ?? '',
+          status: existing?.status ?? null,
+          method: existing?.method ?? null,
+          comment: existing?.comment ?? null,
+          markedAt: existing?.markedAt ?? null,
+        };
+      })
+      // Rasmiy ro'yxatlar familiya bo'yicha tartiblanadi
+      .sort((a, b) => a.lastName.localeCompare(b.lastName, 'uz'));
+
+    return { session, students, markedCount: marked.length };
+  }
+
   async report(filters: {
     courseId?: string;
     groupId?: string;

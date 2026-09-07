@@ -9,6 +9,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { IpBlockGuard } from './common/security/ip-block.guard';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { validateEnv } from './config/configuration';
@@ -36,6 +37,8 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { LtiModule } from './modules/lti/lti.module';
+import { StudentModule } from './modules/student/student.module';
 import { WorkersModule } from './workers/workers.module';
 
 @Module({
@@ -70,12 +73,16 @@ import { WorkersModule } from './workers/workers.module';
     GamificationModule,
     AdminModule,
     IntegrationsModule,
+    LtiModule,
+    StudentModule,
 
     // Navbat ishlovchilari (ADR-004)
     WorkersModule,
   ],
   controllers: [HealthController],
   providers: [
+    // Sayt boshqaruvidagi IP bloklovchi — autentifikatsiyadan ham oldin (F-17)
+    { provide: APP_GUARD, useClass: IpBlockGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     // Foydalanuvchi aniqlangandan KEYIN: limit uning roli bo'yicha tanlanadi
     { provide: APP_GUARD, useClass: RateLimitGuard },

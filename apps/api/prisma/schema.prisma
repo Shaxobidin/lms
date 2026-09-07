@@ -30,70 +30,75 @@ enum UserStatus {
 }
 
 model User {
-  id                String     @id @default(uuid()) @db.Uuid
-  email             String     @unique
-  passwordHash      String?
-  phone             String?    @unique
-  status            UserStatus @default(PENDING)
-  emailVerifiedAt   DateTime?
-  phoneVerifiedAt   DateTime?
-  twoFactorEnabled  Boolean    @default(false)
+  id               String     @id @default(uuid()) @db.Uuid
+  email            String     @unique
+  passwordHash     String?
+  phone            String?    @unique
+  status           UserStatus @default(PENDING)
+  emailVerifiedAt  DateTime?
+  phoneVerifiedAt  DateTime?
+  twoFactorEnabled Boolean    @default(false)
   /// TOTP siri AES-256-GCM bilan shifrlangan holda saqlanadi (§11)
-  totpSecret        String?
-  locale            String     @default("uz-Latn")
+  totpSecret       String?
+  locale           String     @default("uz-Latn")
   /// HEMIS yoki One ID dagi identifikator (A-03, A-04)
-  externalId        String?    @unique
-  externalProvider  String?
-  lastLoginAt       DateTime?
-  failedLoginCount  Int        @default(0)
-  lockedUntil       DateTime?
+  externalId       String?    @unique
+  externalProvider String?
+  lastLoginAt      DateTime?
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
   /// Qidiruv uchun normallashgan matn (ADR-015)
-  searchText        String     @default("")
+  searchText       String     @default("")
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  profile           UserProfile?
-  roles             UserRole[]
-  sessions          Session[]
-  passwordHistory   PasswordHistory[]
-  otpCodes          OtpCode[]
-  auditLogs         AuditLog[]           @relation("AuditActor")
-  enrollments       Enrollment[]
-  taughtCourses     CourseTeacher[]
-  submissions       Submission[]         @relation("SubmissionAuthor")
-  gradedSubmissions Submission[]         @relation("SubmissionGrader")
-  quizAttempts      QuizAttempt[]
-  grades            Grade[]              @relation("GradeOwner")
-  givenGrades       Grade[]              @relation("GradeAuthor")
-  attendances       Attendance[]         @relation("AttendanceStudent")
-  markedAttendances Attendance[]         @relation("AttendanceMarker")
-  lessonProgress    LessonProgress[]
-  notifications     Notification[]
-  sentMessages      Message[]            @relation("MessageSender")
-  receivedMessages  Message[]            @relation("MessageRecipient")
-  forumThreads      ForumThread[]
-  forumPosts        ForumPost[]
-  certificates      Certificate[]        @relation("CertificateHolder")
-  uploadedFiles     FileObject[]
-  badges            UserBadge[]
-  xp                UserXp?
-  payments          Payment[]
-  curatedGroups     Group[]              @relation("GroupCurator")
-  headedDepartments Department[]         @relation("DepartmentHead")
-  deanOfFaculties   Faculty[]            @relation("FacultyDean")
-  studentGroups     GroupMember[]
-  scormTrackings    ScormTracking[]
-  xapiStatements    XapiStatement[]
-  announcements     Announcement[]
-  telegramLink      TelegramLink?
-  notificationPrefs NotificationPreference?
-  excuses           AttendanceExcuse[]   @relation("ExcuseStudent")
-  peerReviews       PeerReview[]
-  generatedDocs     GeneratedDocument[]
-  meetings          Meeting[]
-  transcripts       Transcript[]
+  profile                UserProfile?
+  roles                  UserRole[]
+  sessions               Session[]
+  passwordHistory        PasswordHistory[]
+  otpCodes               OtpCode[]
+  auditLogs              AuditLog[]              @relation("AuditActor")
+  enrollments            Enrollment[]
+  taughtCourses          CourseTeacher[]
+  submissions            Submission[]            @relation("SubmissionAuthor")
+  gradedSubmissions      Submission[]            @relation("SubmissionGrader")
+  quizAttempts           QuizAttempt[]
+  grades                 Grade[]                 @relation("GradeOwner")
+  givenGrades            Grade[]                 @relation("GradeAuthor")
+  attendances            Attendance[]            @relation("AttendanceStudent")
+  markedAttendances      Attendance[]            @relation("AttendanceMarker")
+  lessonProgress         LessonProgress[]
+  notifications          Notification[]
+  sentMessages           Message[]               @relation("MessageSender")
+  receivedMessages       Message[]               @relation("MessageRecipient")
+  forumThreads           ForumThread[]
+  forumPosts             ForumPost[]
+  certificates           Certificate[]           @relation("CertificateHolder")
+  uploadedFiles          FileObject[]
+  badges                 UserBadge[]
+  xp                     UserXp?
+  payments               Payment[]
+  curatedGroups          Group[]                 @relation("GroupCurator")
+  headedDepartments      Department[]            @relation("DepartmentHead")
+  deanOfFaculties        Faculty[]               @relation("FacultyDean")
+  studentGroups          GroupMember[]
+  scormTrackings         ScormTracking[]
+  xapiStatements         XapiStatement[]
+  announcements          Announcement[]
+  telegramLink           TelegramLink?
+  notificationPrefs      NotificationPreference?
+  excuses                AttendanceExcuse[]      @relation("ExcuseStudent")
+  peerReviews            PeerReview[]
+  generatedDocs          GeneratedDocument[]
+  meetings               Meeting[]
+  transcripts            Transcript[]
+  ltiLinks               LtiUserLink[]
+  studentRequests        StudentRequest[]        @relation("StudentRequestOwner")
+  handledStudentRequests StudentRequest[]        @relation("StudentRequestHandler")
+  surveys                Survey[]
+  surveyResponses        SurveyResponse[]
 
   @@index([status, deletedAt])
   @@index([searchText])
@@ -306,13 +311,13 @@ model Department {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  faculty       Faculty         @relation(fields: [facultyId], references: [id])
-  head          User?           @relation("DepartmentHead", fields: [headId], references: [id])
-  specialities  Speciality[]
-  subjects      Subject[]
-  courses       Course[]
-  syllabi       Syllabus[]
-  userRoles     UserRole[]
+  faculty      Faculty      @relation(fields: [facultyId], references: [id])
+  head         User?        @relation("DepartmentHead", fields: [headId], references: [id])
+  specialities Speciality[]
+  subjects     Subject[]
+  courses      Course[]
+  syllabi      Syllabus[]
+  userRoles    UserRole[]
 
   @@index([facultyId, deletedAt])
   @@map("departments")
@@ -330,9 +335,9 @@ model Speciality {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  department  Department   @relation(fields: [departmentId], references: [id])
-  groups      Group[]
-  curricula   Curriculum[]
+  department Department   @relation(fields: [departmentId], references: [id])
+  groups     Group[]
+  curricula  Curriculum[]
 
   @@index([departmentId, deletedAt])
   @@map("specialities")
@@ -351,8 +356,8 @@ model Group {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  speciality    Speciality    @relation(fields: [specialityId], references: [id])
-  curator       User?         @relation("GroupCurator", fields: [curatorId], references: [id])
+  speciality    Speciality     @relation(fields: [specialityId], references: [id])
+  curator       User?          @relation("GroupCurator", fields: [curatorId], references: [id])
   members       GroupMember[]
   enrollments   Enrollment[]
   schedules     Schedule[]
@@ -401,14 +406,14 @@ model AcademicYear {
 }
 
 model Semester {
-  id               String    @id @default(uuid()) @db.Uuid
-  academicYearId   String    @db.Uuid
-  number           Int
-  startsAt         DateTime  @db.Date
-  endsAt           DateTime  @db.Date
-  isCurrent        Boolean   @default(false)
+  id              String    @id @default(uuid()) @db.Uuid
+  academicYearId  String    @db.Uuid
+  number          Int
+  startsAt        DateTime  @db.Date
+  endsAt          DateTime  @db.Date
+  isCurrent       Boolean   @default(false)
   /// Shu sanadan keyin baho kiritish faqat dekanat ruxsati bilan (RSK-10)
-  gradingClosesAt  DateTime? @db.Date
+  gradingClosesAt DateTime? @db.Date
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
@@ -452,16 +457,16 @@ enum BloomLevel {
 }
 
 model Subject {
-  id             String      @id @default(uuid()) @db.Uuid
-  departmentId   String      @db.Uuid
-  code           String      @unique
-  name           Json
-  description    Json?
-  credits        Int
-  controlForm    ControlForm
+  id              String      @id @default(uuid()) @db.Uuid
+  departmentId    String      @db.Uuid
+  code            String      @unique
+  name            Json
+  description     Json?
+  credits         Int
+  controlForm     ControlForm
   /// Oldingi fanlar ro'yxati (uuid massivi) — graf sifatida saqlanadi
-  prerequisiteIds String[]   @db.Uuid
-  searchText     String      @default("")
+  prerequisiteIds String[]    @db.Uuid
+  searchText      String      @default("")
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
@@ -606,6 +611,10 @@ enum ResourceKind {
   XAPI
   TEXT
   FILE
+  /// Bir nechta fayl bitta yig'iladigan element sifatida (Moodle: Folder)
+  FOLDER
+  /// Tashqi interaktiv kontent iframe da (H5P, GeoGebra, video pleer)
+  EMBED
 }
 
 enum EnrollmentStatus {
@@ -639,28 +648,31 @@ model Course {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  subject       Subject?        @relation(fields: [subjectId], references: [id])
-  semester      Semester?       @relation(fields: [semesterId], references: [id])
-  department    Department      @relation(fields: [departmentId], references: [id])
-  cover         FileObject?     @relation("CourseCover", fields: [coverFileId], references: [id])
-  modules       Module[]
-  teachers      CourseTeacher[]
-  enrollments   Enrollment[]
-  assignments   Assignment[]
-  quizzes       Quiz[]
-  rubrics       Rubric[]
-  questionBanks QuestionBank[]
-  grades        Grade[]
-  schedules     Schedule[]
-  classSessions ClassSession[]
-  announcements Announcement[]
-  forumThreads  ForumThread[]
-  certificates  Certificate[]
-  scormPackages ScormPackage[]
-  meetings      Meeting[]
-  payments      Payment[]
-  badges        UserBadge[]
-  xapiStatements XapiStatement[]
+  subject          Subject?          @relation(fields: [subjectId], references: [id])
+  semester         Semester?         @relation(fields: [semesterId], references: [id])
+  department       Department        @relation(fields: [departmentId], references: [id])
+  cover            FileObject?       @relation("CourseCover", fields: [coverFileId], references: [id])
+  modules          Module[]
+  teachers         CourseTeacher[]
+  enrollments      Enrollment[]
+  assignments      Assignment[]
+  quizzes          Quiz[]
+  rubrics          Rubric[]
+  questionBanks    QuestionBank[]
+  grades           Grade[]
+  schedules        Schedule[]
+  classSessions    ClassSession[]
+  announcements    Announcement[]
+  forumThreads     ForumThread[]
+  certificates     Certificate[]
+  scormPackages    ScormPackage[]
+  ltiResourceLinks LtiResourceLink[]
+  studentRequests  StudentRequest[]
+  surveys          Survey[]
+  meetings         Meeting[]
+  payments         Payment[]
+  badges           UserBadge[]
+  xapiStatements   XapiStatement[]
 
   @@index([departmentId, status, deletedAt])
   @@index([semesterId, status])
@@ -797,12 +809,12 @@ model FileObject {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  uploadedBy    User?          @relation(fields: [uploadedById], references: [id])
-  resources     Resource[]     @relation("ResourceFile")
-  courseCovers  Course[]       @relation("CourseCover")
-  avatars       UserProfile[]  @relation("AvatarFile")
+  uploadedBy    User?               @relation(fields: [uploadedById], references: [id])
+  resources     Resource[]          @relation("ResourceFile")
+  courseCovers  Course[]            @relation("CourseCover")
+  avatars       UserProfile[]       @relation("AvatarFile")
   scormPackages ScormPackage[]
-  certificates  Certificate[]  @relation("CertificatePdf")
+  certificates  Certificate[]       @relation("CertificatePdf")
   documents     GeneratedDocument[]
   excuses       AttendanceExcuse[]
 
@@ -895,6 +907,105 @@ model ScormTracking {
   @@map("scorm_trackings")
 }
 
+/// LTI 1.3 platformasi — bizning LMS "tool" sifatida ro'yxatdan o'tgan tashqi tizim (§10)
+model LtiPlatform {
+  id           String  @id @default(uuid()) @db.Uuid
+  name         String
+  /// OIDC `iss`
+  issuer       String
+  clientId     String
+  deploymentId String
+  authLoginUrl String
+  authTokenUrl String
+  jwksUrl      String?
+  /// `jwksUrl` o'rniga qo'lda kiritilgan ochiq kalitlar (JWKS)
+  publicJwks   Json?
+  isActive     Boolean @default(true)
+  createdById  String? @db.Uuid
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  userLinks     LtiUserLink[]
+  resourceLinks LtiResourceLink[]
+
+  @@unique([issuer, clientId])
+  @@map("lti_platforms")
+}
+
+/// Platforma foydalanuvchisi (`sub`) ↔ LMS foydalanuvchisi bog'lanishi
+model LtiUserLink {
+  id           String    @id @default(uuid()) @db.Uuid
+  platformId   String    @db.Uuid
+  subject      String
+  userId       String    @db.Uuid
+  lastLaunchAt DateTime? @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  platform LtiPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([platformId, subject])
+  @@index([userId])
+  @@map("lti_user_links")
+}
+
+/// Platformadagi resurs havolasi (launch konteksti): kurs, AGS va NRPS manzillari
+model LtiResourceLink {
+  id             String   @id @default(uuid()) @db.Uuid
+  platformId     String   @db.Uuid
+  resourceLinkId String
+  courseId       String?  @db.Uuid
+  title          String?
+  contextId      String?
+  contextTitle   String?
+  /// AGS: mavjud line item manzili (`lineitem`)
+  lineItemUrl    String?
+  /// AGS: line item yaratish uchun konteyner (`lineitems`)
+  lineItemsUrl   String?
+  /// NRPS: `context_memberships_url`
+  membershipsUrl String?
+  scopes         String[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  platform  LtiPlatform   @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  course    Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  lineItems LtiLineItem[]
+
+  @@unique([platformId, resourceLinkId])
+  @@index([courseId])
+  @@map("lti_resource_links")
+}
+
+/// AGS: har bir test/topshiriq uchun platformada yaratilgan alohida line item
+/// (Moodle jurnalida alohida ustun). Kurs jamlanmasi esa resurs havolasining
+/// o'z `lineItemUrl` iga boradi.
+model LtiLineItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  resourceLinkId String  @db.Uuid
+  quizId         String? @db.Uuid
+  assignmentId   String? @db.Uuid
+  lineItemUrl    String
+  label          String
+  scoreMaximum   Decimal @db.Decimal(6, 2)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  resourceLink LtiResourceLink @relation(fields: [resourceLinkId], references: [id], onDelete: Cascade)
+  quiz         Quiz?           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  assignment   Assignment?     @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceLinkId, quizId])
+  @@unique([resourceLinkId, assignmentId])
+  @@map("lti_line_items")
+}
+
 /// xAPI (cmi5) minimal LRS (A-07)
 model XapiStatement {
   id          String   @id @default(uuid()) @db.Uuid
@@ -945,8 +1056,8 @@ model Rubric {
 }
 
 model RubricCriterion {
-  id          String @id @default(uuid()) @db.Uuid
-  rubricId    String @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  rubricId    String  @db.Uuid
   title       Json
   description Json?
   maxPoints   Decimal @db.Decimal(6, 2)
@@ -966,37 +1077,38 @@ model RubricCriterion {
 }
 
 model Assignment {
-  id                 String   @id @default(uuid()) @db.Uuid
-  courseId           String   @db.Uuid
-  topicId            String?  @db.Uuid
-  rubricId           String?  @db.Uuid
+  id                 String    @id @default(uuid()) @db.Uuid
+  courseId           String    @db.Uuid
+  topicId            String?   @db.Uuid
+  rubricId           String?   @db.Uuid
   title              Json
   description        Json
-  kind               String   @default("INDIVIDUAL")
-  controlType        String   @default("JN")
-  maxScore           Decimal  @db.Decimal(6, 2)
-  dueAt              DateTime @db.Timestamptz(3)
+  kind               String    @default("INDIVIDUAL")
+  controlType        String    @default("JN")
+  maxScore           Decimal   @db.Decimal(6, 2)
+  dueAt              DateTime  @db.Timestamptz(3)
   lateUntil          DateTime? @db.Timestamptz(3)
-  latePenaltyPercent Decimal  @default(10) @db.Decimal(5, 2)
-  maxAttempts        Int      @default(1)
-  peerReviewEnabled  Boolean  @default(false)
-  peerReviewCount    Int      @default(0)
+  latePenaltyPercent Decimal   @default(10) @db.Decimal(5, 2)
+  maxAttempts        Int       @default(1)
+  peerReviewEnabled  Boolean   @default(false)
+  peerReviewCount    Int       @default(0)
   peerReviewDueAt    DateTime? @db.Timestamptz(3)
-  plagiarismCheck    Boolean  @default(false)
+  plagiarismCheck    Boolean   @default(false)
   allowedMimeTypes   String[]
-  maxFileSizeMb      Int      @default(50)
-  maxFiles           Int      @default(5)
-  isPublished        Boolean  @default(false)
+  maxFileSizeMb      Int       @default(50)
+  maxFiles           Int       @default(5)
+  isPublished        Boolean   @default(false)
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  topic       Topic?       @relation(fields: [topicId], references: [id])
-  rubric      Rubric?      @relation(fields: [rubricId], references: [id])
-  submissions Submission[]
-  grades      Grade[]
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic        Topic?        @relation(fields: [topicId], references: [id])
+  rubric       Rubric?       @relation(fields: [rubricId], references: [id])
+  submissions  Submission[]
+  grades       Grade[]
+  ltiLineItems LtiLineItem[]
 
   @@index([courseId, isPublished, deletedAt])
   @@index([dueAt])
@@ -1027,11 +1139,11 @@ model Submission {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  assignment  Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  user        User          @relation("SubmissionAuthor", fields: [userId], references: [id])
-  gradedBy    User?         @relation("SubmissionGrader", fields: [gradedById], references: [id])
+  assignment   Assignment    @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user         User          @relation("SubmissionAuthor", fields: [userId], references: [id])
+  gradedBy     User?         @relation("SubmissionGrader", fields: [gradedById], references: [id])
   rubricScores RubricScore[]
-  peerReviews PeerReview[]
+  peerReviews  PeerReview[]
 
   @@unique([assignmentId, userId, attemptNumber])
   @@index([assignmentId, status])
@@ -1189,11 +1301,12 @@ model Quiz {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  topic     Topic?         @relation(fields: [topicId], references: [id])
-  questions QuizQuestion[]
-  attempts  QuizAttempt[]
-  grades    Grade[]
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic        Topic?         @relation(fields: [topicId], references: [id])
+  questions    QuizQuestion[]
+  attempts     QuizAttempt[]
+  grades       Grade[]
+  ltiLineItems LtiLineItem[]
 
   @@index([courseId, isPublished, deletedAt])
   @@index([opensAt, closesAt])
@@ -1220,26 +1333,26 @@ model QuizQuestion {
 }
 
 model QuizAttempt {
-  id            String        @id @default(uuid()) @db.Uuid
-  quizId        String        @db.Uuid
-  userId        String        @db.Uuid
-  attemptNumber Int
-  status        AttemptStatus @default(IN_PROGRESS)
+  id               String        @id @default(uuid()) @db.Uuid
+  quizId           String        @db.Uuid
+  userId           String        @db.Uuid
+  attemptNumber    Int
+  status           AttemptStatus @default(IN_PROGRESS)
   /// Talabaga berilgan savollar tartibi (apellyatsiya uchun saqlanadi)
-  questionOrder Json
+  questionOrder    Json
   /// Variant generatsiyasi urug'i — natijani qayta tiklash uchun
-  seed          Int
-  score         Decimal?      @db.Decimal(6, 2)
-  maxScore      Decimal       @db.Decimal(6, 2)
-  startedAt     DateTime      @default(now()) @db.Timestamptz(3)
+  seed             Int
+  score            Decimal?      @db.Decimal(6, 2)
+  maxScore         Decimal       @db.Decimal(6, 2)
+  startedAt        DateTime      @default(now()) @db.Timestamptz(3)
   /// Taymer tugash vaqti — server tomonda hisoblanadi (mijozga ishonilmaydi)
-  expiresAt     DateTime      @db.Timestamptz(3)
-  submittedAt   DateTime?     @db.Timestamptz(3)
-  gradedAt      DateTime?     @db.Timestamptz(3)
-  ip            String?
-  userAgent     String?
+  expiresAt        DateTime      @db.Timestamptz(3)
+  submittedAt      DateTime?     @db.Timestamptz(3)
+  gradedAt         DateTime?     @db.Timestamptz(3)
+  ip               String?
+  userAgent        String?
   /// Proctoring hodisalari jurnali (A-09)
-  proctoringEvents Json       @default("[]")
+  proctoringEvents Json          @default("[]")
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -1256,18 +1369,18 @@ model QuizAttempt {
 }
 
 model QuizAnswer {
-  id                 String   @id @default(uuid()) @db.Uuid
-  attemptId          String   @db.Uuid
-  questionId         String   @db.Uuid
+  id                 String  @id @default(uuid()) @db.Uuid
+  attemptId          String  @db.Uuid
+  questionId         String  @db.Uuid
   /// `questionResponseSchema` shakli
   response           Json?
-  score              Decimal  @default(0) @db.Decimal(6, 2)
-  maxScore           Decimal  @db.Decimal(6, 2)
-  isCorrect          Boolean  @default(false)
-  needsManualGrading Boolean  @default(false)
-  flagged            Boolean  @default(false)
+  score              Decimal @default(0) @db.Decimal(6, 2)
+  maxScore           Decimal @db.Decimal(6, 2)
+  isCorrect          Boolean @default(false)
+  needsManualGrading Boolean @default(false)
+  flagged            Boolean @default(false)
   graderFeedback     Json?
-  gradedById         String?  @db.Uuid
+  gradedById         String? @db.Uuid
   /// Qisman baholash tafsilotlari
   detail             Json?
 
@@ -1375,15 +1488,15 @@ model GradeHistory {
 
 /// Semestr yakunida muzlatilgan natija (ADR-012)
 model Transcript {
-  id         String  @id @default(uuid()) @db.Uuid
-  userId     String  @db.Uuid
-  semesterId String  @db.Uuid
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  semesterId    String    @db.Uuid
   /// Fanlar kesimida yakuniy ballar (materiallashtirilgan)
-  entries    Json
-  gpa        Decimal @db.Decimal(4, 2)
-  totalCredits Int   @default(0)
-  earnedCredits Int  @default(0)
-  closedAt   DateTime? @db.Timestamptz(3)
+  entries       Json
+  gpa           Decimal   @db.Decimal(4, 2)
+  totalCredits  Int       @default(0)
+  earnedCredits Int       @default(0)
+  closedAt      DateTime? @db.Timestamptz(3)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -1423,18 +1536,18 @@ enum SessionStatus {
 }
 
 model Schedule {
-  id          String     @id @default(uuid()) @db.Uuid
-  courseId    String     @db.Uuid
-  groupId     String     @db.Uuid
-  teacherId   String     @db.Uuid
-  weekday     Int
-  startsAt    String
-  endsAt      String
-  room        String?
-  lessonType  LessonType
-  weekParity  Int        @default(0)
-  validFrom   DateTime   @db.Date
-  validUntil  DateTime   @db.Date
+  id         String     @id @default(uuid()) @db.Uuid
+  courseId   String     @db.Uuid
+  groupId    String     @db.Uuid
+  teacherId  String     @db.Uuid
+  weekday    Int
+  startsAt   String
+  endsAt     String
+  room       String?
+  lessonType LessonType
+  weekParity Int        @default(0)
+  validFrom  DateTime   @db.Date
+  validUntil DateTime   @db.Date
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
@@ -1579,16 +1692,16 @@ model Announcement {
 }
 
 model ForumThread {
-  id          String    @id @default(uuid()) @db.Uuid
-  courseId    String    @db.Uuid
-  authorId    String    @db.Uuid
-  title       String
-  isQuestion  Boolean   @default(false)
-  isPinned    Boolean   @default(false)
-  isLocked    Boolean   @default(false)
-  postCount   Int       @default(0)
-  viewCount   Int       @default(0)
-  lastPostAt  DateTime? @db.Timestamptz(3)
+  id         String    @id @default(uuid()) @db.Uuid
+  courseId   String    @db.Uuid
+  authorId   String    @db.Uuid
+  title      String
+  isQuestion Boolean   @default(false)
+  isPinned   Boolean   @default(false)
+  isLocked   Boolean   @default(false)
+  postCount  Int       @default(0)
+  viewCount  Int       @default(0)
+  lastPostAt DateTime? @db.Timestamptz(3)
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
@@ -1616,10 +1729,10 @@ model ForumPost {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  thread   ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  parent   ForumPost?  @relation("PostReplies", fields: [parentId], references: [id])
-  replies  ForumPost[] @relation("PostReplies")
-  author   User        @relation(fields: [authorId], references: [id])
+  thread  ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  parent  ForumPost?  @relation("PostReplies", fields: [parentId], references: [id])
+  replies ForumPost[] @relation("PostReplies")
+  author  User        @relation(fields: [authorId], references: [id])
 
   @@index([threadId, createdAt])
   @@index([parentId])
@@ -1696,10 +1809,10 @@ model NotificationPreference {
 }
 
 model TelegramLink {
-  userId     String   @id @db.Uuid
-  chatId     String   @unique
-  username   String?
-  linkedAt   DateTime @default(now()) @db.Timestamptz(3)
+  userId   String   @id @db.Uuid
+  chatId   String   @unique
+  username String?
+  linkedAt DateTime @default(now()) @db.Timestamptz(3)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -1743,13 +1856,13 @@ model Meeting {
 // ============================================================================
 
 model CertificateTemplate {
-  id           String  @id @default(uuid()) @db.Uuid
+  id           String   @id @default(uuid()) @db.Uuid
   name         Json
   htmlTemplate String
-  cssTemplate  String  @default("")
-  orientation  String  @default("LANDSCAPE")
+  cssTemplate  String   @default("")
+  orientation  String   @default("LANDSCAPE")
   fields       String[]
-  isActive     Boolean @default(true)
+  isActive     Boolean  @default(true)
 
   createdAt DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
@@ -1791,10 +1904,10 @@ model Certificate {
 }
 
 model VerificationCode {
-  id            String   @id @default(uuid()) @db.Uuid
-  certificateId String   @unique @db.Uuid
-  code          String   @unique
-  viewCount     Int      @default(0)
+  id            String    @id @default(uuid()) @db.Uuid
+  certificateId String    @unique @db.Uuid
+  code          String    @unique
+  viewCount     Int       @default(0)
   lastViewedAt  DateTime? @db.Timestamptz(3)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
@@ -1823,8 +1936,9 @@ model GeneratedDocument {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  file      FileObject? @relation(fields: [fileObjectId], references: [id])
-  createdBy User        @relation(fields: [createdById], references: [id])
+  file            FileObject?      @relation(fields: [fileObjectId], references: [id])
+  createdBy       User             @relation(fields: [createdById], references: [id])
+  studentRequests StudentRequest[]
 
   @@index([templateKey, createdAt])
   @@index([createdById])
@@ -1982,17 +2096,114 @@ model IdempotencyKey {
 
 /// HEMIS sinxronizatsiya jurnali (A-03, RSK-01)
 model IntegrationSyncLog {
-  id           String    @id @default(uuid()) @db.Uuid
-  provider     String
-  entity       String
-  direction    String
-  status       String
-  recordsRead  Int       @default(0)
-  recordsWritten Int     @default(0)
-  errors       Json?
-  startedAt    DateTime  @default(now()) @db.Timestamptz(3)
-  finishedAt   DateTime? @db.Timestamptz(3)
+  id             String    @id @default(uuid()) @db.Uuid
+  provider       String
+  entity         String
+  direction      String
+  status         String
+  recordsRead    Int       @default(0)
+  recordsWritten Int       @default(0)
+  errors         Json?
+  startedAt      DateTime  @default(now()) @db.Timestamptz(3)
+  finishedAt     DateTime? @db.Timestamptz(3)
 
   @@index([provider, entity, startedAt])
   @@map("integration_sync_logs")
+}
+
+/// HEMIS "Talaba xizmatlari": ma'lumotnoma, akademik ta'til, qayta o'qish,
+/// o'tkazish, transkript so'rovlari (F-14). Dekanat/kurator ko'rib chiqadi.
+enum StudentRequestType {
+  REFERENCE
+  ACADEMIC_LEAVE
+  RETAKE
+  TRANSFER
+  TRANSCRIPT
+  OTHER
+}
+
+enum StudentRequestStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  DONE
+}
+
+model StudentRequest {
+  id          String               @id @default(uuid()) @db.Uuid
+  userId      String               @db.Uuid
+  type        StudentRequestType
+  courseId    String?              @db.Uuid
+  subject     String
+  details     String?
+  payload     Json                 @default("{}")
+  status      StudentRequestStatus @default(PENDING)
+  handledById String?              @db.Uuid
+  resolution  String?
+  /// Tasdiqlangan ma'lumotnoma/transkript uchun generatsiya qilingan hujjat
+  documentId  String?              @db.Uuid
+  handledAt   DateTime?            @db.Timestamptz(3)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  user      User               @relation("StudentRequestOwner", fields: [userId], references: [id])
+  handledBy User?              @relation("StudentRequestHandler", fields: [handledById], references: [id])
+  course    Course?            @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  document  GeneratedDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@map("student_requests")
+}
+
+/// So'rovnoma (HEMIS "So'rovnoma"): savollar JSON, auditoriya rollar/kurs bo'yicha.
+model Survey {
+  id            String    @id @default(uuid()) @db.Uuid
+  title         Json
+  description   Json?
+  questions     Json
+  audienceRoles String[]
+  courseId      String?   @db.Uuid
+  isAnonymous   Boolean   @default(true)
+  opensAt       DateTime? @db.Timestamptz(3)
+  closesAt      DateTime? @db.Timestamptz(3)
+  isPublished   Boolean   @default(false)
+  /// Fakultet doirasi (`own_faculty`): kurssiz so'rovnomalar uchun muallif fakulteti
+  facultyId     String?   @db.Uuid
+  createdById   String    @db.Uuid
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  createdBy User             @relation(fields: [createdById], references: [id])
+  course    Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  responses SurveyResponse[]
+
+  @@index([isPublished, closesAt])
+  @@index([courseId])
+  @@index([facultyId])
+  @@map("surveys")
+}
+
+/// Javob: anonim so'rovnomada `userId` saqlanmaydi, takrorni oldini olish uchun
+/// `respondentKey` (survey+user hash) ishlatiladi.
+model SurveyResponse {
+  id            String  @id @default(uuid()) @db.Uuid
+  surveyId      String  @db.Uuid
+  userId        String? @db.Uuid
+  respondentKey String
+  answers       Json
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([surveyId, respondentKey])
+  @@index([surveyId, createdAt])
+  @@map("survey_responses")
 }

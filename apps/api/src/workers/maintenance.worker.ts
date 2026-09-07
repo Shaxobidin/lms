@@ -21,6 +21,7 @@ import { FilesService } from '../modules/content/files.service';
 import { QuizzesService } from '../modules/quizzes/quizzes.service';
 import { GamificationService } from '../modules/gamification/gamification.module';
 import { HemisSyncService } from '../modules/integrations/hemis-sync.service';
+import { LtiServicesService } from '../modules/lti/lti-services.service';
 
 @Injectable()
 export class MaintenanceWorker extends BaseWorker implements OnModuleInit {
@@ -35,6 +36,7 @@ export class MaintenanceWorker extends BaseWorker implements OnModuleInit {
     private readonly quizzes: QuizzesService,
     private readonly gamification: GamificationService,
     private readonly hemisSync: HemisSyncService,
+    private readonly ltiServices: LtiServicesService,
   ) {
     super(redis, QUEUES.MAINTENANCE, config.get('APP_ROLE', { infer: true }), 1);
   }
@@ -66,6 +68,22 @@ export class MaintenanceWorker extends BaseWorker implements OnModuleInit {
         const since = payload.since ? new Date(payload.since) : undefined;
         if (payload.entity === 'teachers') return this.hemisSync.syncTeachers(since);
         return this.hemisSync.syncStudents(since);
+      }
+
+      case 'lti.ags.push': {
+        const payload = job.data as {
+          courseId: string;
+          userId: string;
+          quizId?: string;
+          assignmentId?: string;
+        };
+        return this.ltiServices.pushUserGrade(
+          payload.courseId,
+          payload.userId,
+          payload.quizId || payload.assignmentId
+            ? [{ quizId: payload.quizId, assignmentId: payload.assignmentId }]
+            : [],
+        );
       }
 
       default:

@@ -15,6 +15,8 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 /** `deletedAt` ustuni mavjud bo'lgan modellar. */
 const SOFT_DELETE_MODELS = new Set<string>([
+  'StudentRequest',
+  'Survey',
   'User',
   'UserProfile',
   'Role',
@@ -40,6 +42,7 @@ const SOFT_DELETE_MODELS = new Set<string>([
   'FileObject',
   'Enrollment',
   'ScormPackage',
+  'LtiPlatform',
   'Rubric',
   'RubricCriterion',
   'Assignment',
@@ -63,6 +66,12 @@ const SOFT_DELETE_MODELS = new Set<string>([
   'Payment',
 ]);
 
+/**
+ * `findUnique` alohida ishlanadi: unga `deletedAt` filtri qo'shib bo'lmaydi,
+ * shuning uchun natija qaytgach tekshiriladi.
+ */
+const UNIQUE_READ_OPERATIONS = new Set(['findUnique', 'findUniqueOrThrow']);
+
 const READ_OPERATIONS = new Set([
   'findFirst',
   'findFirstOrThrow',
@@ -71,6 +80,74 @@ const READ_OPERATIONS = new Set([
   'aggregate',
   'groupBy',
 ]);
+
+/**
+ * Model -> (munosabat maydoni -> bog'liq model) xaritasi.
+ *
+ * Prisma ichma-ich `select`/`include` uchun avtomatik filtr qo'ymaydi,
+ * shuning uchun uni qo'lda qo'shamiz. Xarita DMMF dan bir marta quriladi.
+ */
+interface RelationInfo {
+  model: string;
+  /** Ko'plik munosabatmi — `where` FAQAT ro'yxatlarda ishlaydi. */
+  isList: boolean;
+}
+
+const RELATION_MAP: Map<string, Map<string, RelationInfo>> = new Map(
+  Prisma.dmmf.datamodel.models.map((model) => [
+    model.name,
+    new Map(
+      model.fields
+        .filter((field) => field.kind === 'object' && typeof field.type === 'string')
+        .map((field) => [field.name, { model: field.type, isList: field.isList }]),
+    ),
+  ]),
+);
+
+/**
+ * `select`/`include` daraxtiga rekursiv ravishda `deletedAt: null` qo'shadi.
+ *
+ * Chaqiruvchi biror joyda `deletedAt` ni O'ZI belgilagan bo'lsa, o'sha shox
+ * tegilmaydi — arxivni ataylab so'rash imkoniyati saqlanadi.
+ */
+function applyNestedFilter(modelName: string, node: unknown): void {
+  if (!node || typeof node !== 'object') return;
+
+  const container = node as Record<string, unknown>;
+  const relations = RELATION_MAP.get(modelName);
+  if (!relations) return;
+
+  for (const key of ['select', 'include'] as const) {
+    const branch = container[key];
+    if (!branch || typeof branch !== 'object') continue;
+
+    for (const [field, value] of Object.entries(branch as Record<string, unknown>)) {
+      const relation = relations.get(field);
+      if (!relation) continue;
+
+      const filterable = relation.isList && SOFT_DELETE_MODELS.has(relation.model);
+
+      // `true` bo'lsa argument obyektiga aylantiramiz — faqat filtr kerak bo'lganda.
+      // Birlik munosabatda `where` Prisma tomonidan qabul qilinmaydi, shuning
+      // uchun u yerda argument shakli o'zgartirilmaydi.
+      if (value === true && !filterable) continue;
+
+      const args =
+        value === true ? ({} as Record<string, unknown>) : (value as Record<string, unknown>);
+      if (typeof args !== 'object' || args === null) continue;
+
+      if (filterable) {
+        const where = (args['where'] ?? {}) as Record<string, unknown>;
+        if (!('deletedAt' in where)) {
+          args['where'] = { ...where, deletedAt: null };
+        }
+      }
+
+      (branch as Record<string, unknown>)[field] = args;
+      applyNestedFilter(relation.model, args);
+    }
+  }
+}
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -119,7 +196,46 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             if (!('deletedAt' in where)) {
               typedArgs.where = { ...where, deletedAt: null };
             }
+            applyNestedFilter(model, typedArgs);
             return query(typedArgs as typeof args);
+          }
+
+          /**
+           * `findUnique` ni `where` orqali filtrlab bo'lmaydi: Prisma u yerda
+           * faqat unikal maydonlarni qabul qiladi, `deletedAt` esa unikal
+           * cheklovga kirmaydi. Shu sababli natija QAYTGANDAN KEYIN tekshiriladi.
+           */
+          if (UNIQUE_READ_OPERATIONS.has(operation)) {
+            applyNestedFilter(model, args);
+
+            // Chaqiruvchi `select` bergan bo'lsa, `deletedAt` u yerda bo'lmasligi
+            // mumkin — u holda holatni tekshirib bo'lmaydi. Shuning uchun uni
+            // vaqtincha qo'shamiz va javobdan olib tashlaymiz: chaqiruvchi
+            // so'ramagan maydon unga qaytmasligi kerak.
+            const selectArgs = args as { select?: Record<string, unknown> };
+            const injectedDeletedAt =
+              selectArgs.select !== undefined && !('deletedAt' in selectArgs.select);
+            if (injectedDeletedAt) {
+              selectArgs.select = { ...selectArgs.select, deletedAt: true };
+            }
+
+            const result = (await query(args)) as { deletedAt?: Date | null } | null;
+
+            if (result && injectedDeletedAt && !result.deletedAt) {
+              delete result.deletedAt;
+            }
+
+            if (result && result.deletedAt) {
+              if (operation === 'findUniqueOrThrow') {
+                throw new Prisma.PrismaClientKnownRequestError(`${model} topilmadi (o'chirilgan)`, {
+                  code: 'P2025',
+                  clientVersion: Prisma.prismaVersion.client,
+                });
+              }
+              return null;
+            }
+
+            return result;
           }
 
           // Fizik o'chirishga yo'l qo'yilmaydi (P6). Prisma kengaytmasi ichida

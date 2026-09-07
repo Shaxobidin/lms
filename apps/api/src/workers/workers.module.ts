@@ -21,6 +21,7 @@ import { DocumentsModule } from '../modules/documents/documents.module';
 import { CertificatesModule } from '../modules/certificates/certificates.module';
 import { GamificationModule } from '../modules/gamification/gamification.module';
 import { AnalyticsModule } from '../modules/analytics/analytics.module';
+import { LtiModule } from '../modules/lti/lti.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AnalyticsModule } from '../modules/analytics/analytics.module';
     CertificatesModule,
     GamificationModule,
     AnalyticsModule,
+    LtiModule,
   ],
   providers: [
     MailerService,

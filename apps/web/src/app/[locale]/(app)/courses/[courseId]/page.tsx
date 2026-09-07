@@ -22,7 +22,11 @@ import {
   Users,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { usePublicSettings } from '@/lib/public-settings';
 import { useAuthStore } from '@/lib/auth-store';
+import { CourseBuilder } from '@/components/course/course-builder';
+import { LtiCoursePanel } from '@/components/course/lti-course-panel';
+import { SwitchField } from '@/components/ui/form-controls';
 import { cn, deadlineColorClass, formatDateTime, localize } from '@/lib/utils';
 import { Link, type AppLocale } from '@/i18n/routing';
 import {
@@ -104,6 +108,7 @@ function isControlType(value: string): value is 'JN' | 'ON' | 'YN' {
 
 export default function CoursePage() {
   const t = useTranslations();
+  const siteSettings = usePublicSettings();
   const locale = useLocale() as AppLocale;
   const params = useParams<{ courseId: string }>();
   const courseId = params.courseId;
@@ -111,9 +116,13 @@ export default function CoursePage() {
   const can = useAuthStore((state) => state.can);
   const user = useAuthStore((state) => state.user);
   const [tab, setTab] = useState<Tab>('content');
+  const [editing, setEditing] = useState(false);
 
   const isTeacher = user?.scope.courseIds.includes(courseId) ?? false;
   const canSeeGradebook = can('grade:read:own_course') || can('grade:read:own_faculty');
+  // Tuzilmani faqat kurs muallifi yoki kafedra darajasidagi rol tahrirlaydi
+  const canEdit =
+    can('lesson:manage:own_course') && (isTeacher || can('course:update:own_department'));
 
   const structure = useQuery({
     queryKey: ['course', courseId],
@@ -178,7 +187,7 @@ export default function CoursePage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-start gap-2">
             <Badge variant={course.status === 'PUBLISHED' ? 'success' : 'warning'}>
               {t(`courses.${course.status}`)}
             </Badge>
@@ -220,6 +229,19 @@ export default function CoursePage() {
         ) : null}
       </header>
 
+      {/* Tahrirlash rejimi — Moodle dagi "tahrirlashni yoqish" ga o'xshash */}
+      {canEdit ? (
+        <div className="max-w-md">
+          <SwitchField
+            id="course-editing"
+            label={t('courses.editingMode')}
+            description={t('courses.editingModeHint')}
+            checked={editing}
+            onCheckedChange={setEditing}
+          />
+        </div>
+      ) : null}
+
       {/* Tab navigatsiyasi */}
       <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-border">
         {tabs
@@ -247,7 +269,14 @@ export default function CoursePage() {
       </div>
 
       {/* --- Kurs tuzilishi --- */}
-      {tab === 'content' ? (
+      {tab === 'content' && editing ? (
+        <>
+          <LtiCoursePanel courseId={courseId} />
+          <CourseBuilder courseId={courseId} modules={course.modules} locale={locale} />
+        </>
+      ) : null}
+
+      {tab === 'content' && !editing ? (
         course.modules.length === 0 ? (
           <EmptyState
             icon={<BookOpen className="size-8" />}
@@ -269,7 +298,25 @@ export default function CoursePage() {
         )
       ) : null}
 
+      {/* --- Forum: barcha ishtirokchilar uchun (sayt boshqaruvida o'chirilishi mumkin) --- */}
+      {siteSettings.enabled('advanced.forum') ? (
+        <div className="flex justify-end">
+          <Button asChild size="sm" variant="ghost">
+            <Link href={`/courses/${courseId}/forum`}>{t('messaging.forum')}</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {/* --- Topshiriqlar --- */}
+      {tab === 'assignments' && canEdit ? (
+        <div className="flex justify-end">
+          {/* Rubrika baholash mezonlarini belgilaydi — topshiriqdan oldin tuziladi */}
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/courses/${courseId}/rubrics`}>{t('assignments.rubrics')}</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {tab === 'assignments' ? (
         assignments.isLoading ? (
           <Skeleton className="h-40" />
@@ -374,9 +421,23 @@ export default function CoursePage() {
                         </Badge>
                       ) : null}
 
-                      <Button asChild size="sm">
-                        <Link href={`/quizzes/${quiz.id}` as '/quizzes'}>{t('quizzes.start')}</Link>
-                      </Button>
+                      {/* O'qituvchi test tarkibini konstruktorda tuzadi (F-07) */}
+                      {canEdit ? (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/quizzes/${quiz.id}/questions`}>
+                            {t('quizzes.manageQuestions')}
+                          </Link>
+                        </Button>
+                      ) : quiz._count.questions === 0 ? (
+                        // Savolsiz test boshlanmaydi (server 422 qaytaradi) — tugma o'rniga holat
+                        <Badge variant="muted">{t('quizzes.noQuestionsYet')}</Badge>
+                      ) : (
+                        <Button asChild size="sm">
+                          <Link href={`/quizzes/${quiz.id}` as '/quizzes'}>
+                            {t('quizzes.start')}
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

@@ -9,8 +9,16 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { assessRisk, round2, type AnalyticsQuery, type RiskAssessment } from '@lms/shared';
+import {
+  DEFAULT_RISK_THRESHOLDS,
+  assessRisk,
+  round2,
+  type AnalyticsQuery,
+  type RiskAssessment,
+  type RiskThresholds,
+} from '@lms/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SiteSettingsService } from '../../common/settings/site-settings.service';
 import { CacheService } from '../../common/cache/cache.service';
 import type { RequestUser } from '../../common/auth/auth.types';
 import { effectiveScope } from '../../common/auth/scope-filter';
@@ -48,7 +56,37 @@ export class AnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly siteSettings: SiteSettingsService,
   ) {}
+
+  /**
+   * Sayt boshqaruvi → Analitika sozlamalari (F-17): davomat ogohlantirish
+   * chegarasi, past o'zlashtirish foizi va faolsizlik kunlari xavf modeliga
+   * beriladi. Kritik chegaralar ogohlantiruvchidan biroz pastroq olinadi.
+   */
+  private async riskThresholds(): Promise<RiskThresholds> {
+    const [attendance, lowProgress, inactivity] = await Promise.all([
+      this.siteSettings.get<number>('attendance.warningThreshold'),
+      this.siteSettings.get<number>('analytics.lowProgressPercent'),
+      this.siteSettings.get<number>('analytics.inactivityDays'),
+    ]);
+    const clamp = (value: number, fallback: number) =>
+      Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : fallback;
+    const attendanceWarning = clamp(attendance, DEFAULT_RISK_THRESHOLDS.attendanceWarning);
+    const scoreCritical = clamp(lowProgress, DEFAULT_RISK_THRESHOLDS.scoreCritical);
+    const inactiveCritical =
+      Number.isFinite(inactivity) && inactivity > 0
+        ? Math.round(inactivity)
+        : DEFAULT_RISK_THRESHOLDS.inactiveCritical;
+    return {
+      attendanceWarning,
+      attendanceCritical: Math.max(0, attendanceWarning - 15),
+      scoreCritical,
+      scoreWarning: Math.min(100, scoreCritical + 10),
+      inactiveCritical,
+      inactiveWarning: Math.max(1, Math.ceil(inactiveCritical / 2)),
+    };
+  }
 
   /**
    * Rolga mos dashboard. Scope avtomatik qo'llaniladi: dekanat o'z
@@ -308,6 +346,7 @@ export class AnalyticsService {
 
     const now = Date.now();
     const overdueAssignments = assignments.filter((item) => item.dueAt.getTime() < now);
+    const thresholds = await this.riskThresholds();
 
     return enrollments
       .map((enrollment) => {
@@ -326,14 +365,17 @@ export class AnalyticsService {
           ? Math.floor((now - enrollment.lastAccessAt.getTime()) / 86_400_000)
           : 30;
 
-        const assessment = assessRisk({
-          userId: enrollment.userId,
-          attendancePercent,
-          missedAssignments: missed,
-          currentScore,
-          inactiveDays,
-          totalAssignments: overdueAssignments.length,
-        });
+        const assessment = assessRisk(
+          {
+            userId: enrollment.userId,
+            attendancePercent,
+            missedAssignments: missed,
+            currentScore,
+            inactiveDays,
+            totalAssignments: overdueAssignments.length,
+          },
+          thresholds,
+        );
 
         return {
           ...assessment,

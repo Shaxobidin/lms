@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { codeSchema, uuidSchema } from './common';
+import { codeSchema, httpUrlSchema, uuidSchema } from './common';
 import { localizedRichTextSchema, localizedTextSchema } from '../types/localized';
 import { CONTROL_TYPES } from '../domain/grading';
 
@@ -114,7 +114,7 @@ export const syllabusContentSchema = z.object({
       z.object({
         type: z.enum(['MAIN', 'ADDITIONAL', 'ELECTRONIC']),
         citation: z.string().trim().min(5).max(1000),
-        url: z.string().url().optional(),
+        url: httpUrlSchema.optional(),
       }),
     )
     .max(100)

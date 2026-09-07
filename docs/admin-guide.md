@@ -23,6 +23,61 @@ tekshiruvi yo'q — bu ruxsatlarni bir joydan boshqarish imkonini beradi.
 
 ---
 
+## 1a. Sayt boshqaruvi (Moodle uslubidagi sozlamalar daraxti)
+
+`Sozlamalar → Sayt boshqaruvi` (`/admin/site`) — Moodle "Site administration"
+kabi chap tomonda toifa → bo'lim daraxti, o'ngda bo'lim formasi. Qidiruv maydoni
+bo'lim yoki sozlama nomi bo'yicha filtrlaydi. O'zgarishlar **darhol** kuchga
+kiradi (30 soniyagacha keshlanadi), har bir saqlash audit jurnaliga tushadi.
+Ko'rish uchun `system:read:all`, saqlash uchun `system:manage:all` (SUPER_ADMIN)
+kerak.
+
+| Toifa                          | Bo'limlar va nima qiladi                                                                                                                                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foydalanuvchilar bilan ishlash | Foydalanuvchilar (havola), Administratorga e'lon (qaysi hodisalar e-mail qilinadi), **Ro'yxatdan o'tish** (yoqish, ruxsat etilgan e-mail domenlari, beriladigan rol — server tekshiradi), Tashqi xizmatlar (LTI/HEMIS/One ID), Fikr-mulohaza |
+| Kengaytirilgan imkoniyatlar    | Modul kalitlari + feature flag'lar                                                                                                                                                                                                           |
+| Analitika                      | Sayt ma'lumotlari (statistika), Analitika sozlamalari (davomat/xavf chegaralari), Analitika modellari                                                                                                                                        |
+| Kompetensiyalar                | Sozlamalar, freymvorklar, o'quv reja shablonlari (sillabus Bloom darajalariga bog'lanadi)                                                                                                                                                    |
+| Nishonlar                      | Sozlamalar, **Nishonlarni boshqarish** (ro'yxat + yangi nishon qo'shish), Backpack                                                                                                                                                           |
+| H5P                            | Umumiy, kontent turlari, sozlamalar                                                                                                                                                                                                          |
+| Ruxsatnoma                     | Standart ruxsatnoma, ruxsatnomalar menejeri                                                                                                                                                                                                  |
+| Joylashuv                      | Vaqt zonasi (NF-09 bo'yicha Toshkent, o'zgarmas), mamlakat, shahar, manzil, telefon                                                                                                                                                          |
+| Til                            | Til sozlamalari (standart va yoqilgan tillar), **Tilni moslashtirish** (interfeys matnlarini kalit bo'yicha qayta yozish — darhol amal qiladi), Til paketlari                                                                                |
+| Xabarlar                       | **Xabarlar sozlamalari** (talaba→talaba yozishmasi — server tekshiradi), Bildirishnoma kanallari, Telegram bot                                                                                                                               |
+| To'lovlar                      | To'lov hisoblari (provayderlar), sozlamalar                                                                                                                                                                                                  |
+| Himoya                         | **IP bloklovchi** (taqiq/ruxsat ro'yxatlari — API darajasida 403, `/health` istisno), Sayt siyosatlari (parol uzunligi ham shu yerda), HTTP himoyasi                                                                                         |
+| Ma'lumotlar va bosh sahifa     | Sayt ma'lumotlari (nom, tavsif, qo'llab-quvvatlash e-mail — ochiq sozlama), Bosh sahifa sozlamalari                                                                                                                                          |
+| Mobil ilova                    | PWA sozlamalari, do'kon havolalari, mobil autentifikatsiya, ko'rinish, offline bo'limlar                                                                                                                                                     |
+| Kontent almashinuvi            | IMS CC / QTI / SCORM import-eksport kalitlari (Moodle "MoodleNet" o'rniga)                                                                                                                                                                   |
+
+Moodle'ga xos bandlar bizning ekvivalentga xaritalangan va bo'lim izohida
+ko'rsatilgan: "Moodle services" → Tashqi xizmatlar, "Jabber" → Telegram bot,
+"Moodle app subscription" → PWA (obuna yo'q), "MoodleNet" → Kontent almashinuvi.
+
+**Darhol kuchga kiradiganlar**: IP bloklovchi, ro'yxatdan o'tish qoidalari,
+parol uzunligi, xabarlar (modul va talaba→talaba), bildirishnoma kanallari va
+sokin soatlar, yuklash hajmi chegarasi (H5P alohida), analitika chegaralari,
+tilni moslashtirish, brend (ilova nomi), menyu bandlari (xabarlar, yutuqlar,
+forum), kirishdan keyingi sahifa, PWA manifesti (nom, rang, til).
+
+**IP bloklovchi** formatlari: aniq IP (`203.0.113.7`), prefiks (`192.168.`),
+IPv4 CIDR (`10.0.0.0/8`). Taqiq ro'yxati har doim ustun; ruxsat ro'yxati
+bo'sh bo'lsa hamma kiradi. O'zingizni bloklab qo'ymaslik uchun avval ruxsat
+ro'yxatiga o'z IP'ingizni qo'shing.
+
+## 1b. Talaba arizalari va so'rovnomalar
+
+- `Sozlamalar → Talaba arizalari` (`/admin/student-requests`): dekanat (o'z
+  fakulteti), kurator (o'z guruhi, faqat ko'rish) va administratorlar
+  arizalarni ko'radi. "Ko'rib chiqishga olish" → "Tasdiqlash" / "Rad etish" →
+  "Bajarildi". Izoh talabaga bildirishnoma bilan boradi. **Ma'lumotnoma** va
+  **Transkript** arizasi tasdiqlanganda hujjat avtomatik generatsiya qilinadi
+  (F-14) va talabaning "Ma'lumot" bo'limida ko'rinadi.
+- `Sozlamalar → So'rovnomalar` (`/admin/surveys`): so'rovnoma yaratish (savollar
+  qatorma-qator: `matn | SCALE`, `matn | CHOICE | a; b`, `matn | TEXT`), nashr
+  qilish/yopish, natijalar (o'rtacha, taqsimot, matnlar). Anonim so'rovnomada
+  javob beruvchi saqlanmaydi, takror javob esa oldini olinadi.
+
 ## 2. Tashkiliy tuzilma
 
 **Tuzilma** bo'limi iyerarxiyani boshqaradi:
@@ -31,24 +86,44 @@ tekshiruvi yo'q — bu ruxsatlarni bir joydan boshqarish imkonini beradi.
 Fakultet → Kafedra → Yo'nalish → Guruh → Talaba
 ```
 
+> **Kim boshqaradi:** tuzilmani o'zgartirish **Muassasa administratori**
+> (INSTITUTION_ADMIN) vakolati. Super administrator tuzilmani faqat ko'radi —
+> u tizim konfiguratsiyasi uchun, akademik tuzilma uchun emas (§1).
+
 ### Tartib
 
-1. **Fakultet** yarating (kod + nom 4 tilda).
-2. Fakultet ichida **kafedralar**.
-3. Kafedra ostida **yo'nalishlar** (davlat klassifikatori kodi bilan, masalan `60110100`).
-4. Yo'nalish uchun **guruhlar** (`MI-24-01` ko'rinishida).
+**Tuzilma** sahifasi daraxtni ko'rsatadi; har bir darajaning yonida
+tahrirlash (qalam) va o'sha darajaga bola qo'shish tugmalari turadi.
 
-> **Fakultetni o'chirish** faqat u bo'sh bo'lsa mumkin. Bu tasodifiy ma'lumot
-> yo'qotishning oldini oladi — avval kafedralarni ko'chiring.
+1. **Fakultet yaratish** — kod (noyob), nom 4 tilda, dekan (ro'yxatdan),
+   tartib raqami.
+2. Fakultetni ochib **Kafedra qo'shish** — kod, nom, kafedra mudiri.
+3. Kafedra qatorida **Yo'nalish qo'shish** — davlat klassifikatori kodi
+   (masalan `60110100`), ta'lim darajasi, muddati (yil).
+4. Yo'nalish qatorida **Guruh qo'shish** — nom (`MI-24-01`), qabul yili,
+   ta'lim shakli, ta'lim tili, kurator (tyutorlar ro'yxatidan).
+
+Guruh belgisini bossangiz **a'zolar oynasi** ochiladi: talabalar ro'yxati va
+**Talabani biriktirish** formasi (ism/email bo'yicha qidiruv, sabab yoki buyruq
+raqami). Talaba boshqa guruhda bo'lsa, u yerdagi a'zoligi yopiladi — tarix
+saqlanadi va audit jurnaliga tushadi.
+
+> **Fakultetni o'chirish** faqat u bo'sh bo'lsa mumkin (tugma kafedrasi bor
+> fakultetda o'chirilgan turadi, server ham rad etadi). Bu tasodifiy ma'lumot
+> yo'qotishning oldini oladi — avval kafedralarni ko'chiring. Kafedra, yo'nalish
+> va guruh o'chirilmaydi — faqat tahrirlanadi.
 
 ### O'quv yili va semestr
 
-**Tuzilma → O'quv yillari**
+**Tuzilma → Akademik kalendar**
 
-1. O'quv yili yarating: `2026-2027`, sanalar bilan.
-2. Semestrlarni qo'shing (1, 2), boshlanish/tugash sanalari va
-   **jurnal yopilish sanasi** bilan.
-3. Joriy semestrni belgilang — u butun tizimda standart sifatida ishlatiladi.
+1. **O'quv yili yaratish**: nom `2026-2027` ko'rinishida, boshlanish/tugash
+   sanalari (boshlanish tugashdan oldin bo'lishi shart).
+2. Yil kartasida **Semestr qo'shish** (1, 2, …) — sanalar va **jurnal yopilish
+   sanasi**: undan keyin baho kiritish faqat dekanat ruxsati bilan.
+3. **Joriy deb belgilash** — yil va semestr uchun alohida tugma; u butun
+   tizimda standart sifatida ishlatiladi. Oldingi joriy yozuv avtomatik
+   olib tashlanadi.
 
 > Bir vaqtning o'zida faqat **bitta** joriy o'quv yili va bitta joriy semestr
 > bo'lishi mumkin — buni baza darajasidagi cheklov ham kafolatlaydi.
@@ -207,6 +282,50 @@ PAYME_SECRET_KEY=...
 Webhook imzosi tekshiriladi — soxta "to'lov bajarildi" so'rovi qabul qilinmaydi.
 
 ---
+
+### LTI 1.3 (tashqi platformalar)
+
+**Alohida line item'lar.** Kurs jamlanmasi launch'da kelgan `lineitem` ga foiz
+sifatida boradi. Har bir test/topshiriq bahosi esa platformada avtomatik
+yaratiladigan alohida line item'ga (Moodle jurnalida alohida ustun, nomi —
+test/topshiriq nomi, maksimal ball — o'sha faoliyatniki) xom ball bilan
+yuboriladi. Buning uchun platforma `lineitem` (yozish) scope'ini bergan
+bo'lishi kerak; aks holda faqat jamlanma yuboriladi. Yaratilgan line item'lar
+kurs sahifasidagi LTI panelida ko'rinadi.
+
+**Sozlamalar → LTI platformalari** (faqat Super administrator; Muassasa
+administratori ro'yxatni ko'radi). Bizning LMS **Tool** rejimida ishlaydi:
+Moodle, Canvas yoki boshqa LMS foydalanuvchini bizga uzatadi, biz esa uni
+avtomatik tanib, kerak bo'lsa hisob ochib, kursga kiritamiz.
+
+Ikki tomonlama ro'yxatga olish:
+
+1. **Platformada** (Moodle: _Site administration → Plugins → External tool →
+   Manage tools → Configure a tool manually_) sahifadagi **tool manzillari**
+   kiritiladi: Initiate login URL, Redirect/Launch URL, JWKS URL. Custom
+   parametr sifatida `course_id=<kurs UUID>` berilsa, foydalanuvchi to'g'ridan-to'g'ri
+   o'sha kursga tushadi (talaba avtomatik yoziladi; o'qituvchiga kursga huquq
+   **avtomatik berilmaydi** — bu kurs egasining qarori).
+2. **Bizda** platforma yozuvi: nom, `issuer`, `client_id`, `deployment_id`,
+   auth (OIDC) va token manzillari, hamda kalit manbasi — **JWKS URL** yoki
+   qo'lda kiritilgan **JWKS JSON** (URL ga ulanish bo'lmagan yopiq tarmoqlar uchun).
+
+Foydalanuvchi qanday aniqlanadi: avval platforma `sub` bo'yicha oldingi
+bog'lanish, keyin `email` bo'yicha mavjud hisob (bog'lanadi), aks holda yangi
+hisob — o'qituvchi rollari (`Instructor`, `TeachingAssistant`) bo'lsa TEACHER,
+qolgan hollarda STUDENT. Har bir launch va yaratilgan hisob audit jurnaliga tushadi.
+
+> **Ishlab chiqarishda** `LTI_TOOL_PRIVATE_KEY` (PKCS#8 PEM) ni `.env` da bering.
+> U bo'lmasa har ishga tushishda vaqtinchalik kalit yaratiladi va platformada
+> saqlangan JWKS eskiradi — loglarda ogohlantirish chiqadi.
+>
+> **LTI Advantage:** Deep Linking (platformadan kurs tanlash), AGS (baholarni
+> platformaga qaytarish — baho o'zgarganda avtomatik, kursda qo'lda ham) va
+> NRPS (a'zolarni olish/yozish) ishlaydi. Buning uchun platformada tool'ga
+> tegishli xizmatlar yoqilgan bo'lishi kerak (Moodle: _Supports Deep Linking_,
+> _IMS LTI Assignment and Grade Services_, _IMS LTI Names and Role Provisioning_)
+> va `authTokenUrl` to'g'ri bo'lishi shart — tool shu manzildan
+> `client_credentials` tokeni oladi.
 
 ## 7. Tizim salomatligi
 

@@ -22,4 +22,6 @@ apps/api/openapi.json
 playwright-report/
 test-results/
 storage/
+# `storage/` — yuklangan fayllar katalogi; manba kodidagi `common/storage/` moduli emas
+!apps/api/src/common/storage/
 tmp/

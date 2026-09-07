@@ -14,6 +14,10 @@ import {
   type CreateLessonInput,
   type CreateModuleInput,
   type CreateResourceInput,
+  type UpdateModuleInput,
+  type UpdateTopicInput,
+  type UpdateResourceInput,
+  type ResourceMeta,
   type CreateTopicInput,
   type CursorPagination,
   type EnrollInput,
@@ -100,6 +104,13 @@ export class CoursesService {
           },
         },
         _count: { select: { enrollments: true, modules: true } },
+        // Joriy foydalanuvchining yozilish holati — katalogda "Yozilish" yoki
+        // "Yozilgan" ko'rsatish uchun. Filtr `userId` bo'yicha, shuning uchun
+        // ro'yxatda ko'pi bilan bitta yozuv qaytadi (N+1 emas).
+        // Mehmon uchun `actor` yo'q — u holda bu maydon umuman so'ralmaydi
+        enrollments: actor
+          ? { where: { userId: actor.id }, select: { status: true }, take: 1 }
+          : false,
       },
     });
 
@@ -245,7 +256,18 @@ export class CoursesService {
             externalUrl: true,
             isRequired: true,
             meta: true,
-            file: { select: { id: true, objectKey: true, mimeType: true, variants: true } },
+            // `originalName` va `sizeBytes`: talaba yuklab olishdan oldin
+            // fayl nomi va hajmini ko'radi, o'qituvchi esa materiallar ro'yxatida
+            file: {
+              select: {
+                id: true,
+                objectKey: true,
+                mimeType: true,
+                variants: true,
+                originalName: true,
+                sizeBytes: true,
+              },
+            },
           },
         },
         progress: {
@@ -532,6 +554,187 @@ export class CoursesService {
     return updated;
   }
 
+  async updateModule(moduleId: string, input: UpdateModuleInput, actor: RequestUser) {
+    const updated = await this.prisma.db.module.update({
+      where: { id: moduleId },
+      data: {
+        ...(input.title !== undefined
+          ? { title: this.sanitizer.sanitizeLocalized(input.title) as never }
+          : {}),
+        ...(input.description !== undefined
+          ? { description: this.sanitizer.sanitizeLocalized(input.description) as never }
+          : {}),
+        ...(input.isPublished !== undefined ? { isPublished: input.isPublished } : {}),
+      },
+      select: { id: true, title: true, isPublished: true },
+    });
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'module.update',
+      resource: 'course',
+      resourceId: moduleId,
+    });
+    return updated;
+  }
+
+  /**
+   * Modulni o'chirish — ichidagi mavzular va darslar bilan birga.
+   *
+   * Soft delete ishlatiladi (A-26): baholar va progress yozuvlari darsga
+   * ishora qiladi, shuning uchun jismoniy o'chirish tarixni buzardi.
+   */
+  async deleteModule(moduleId: string, actor: RequestUser) {
+    const topics = await this.prisma.db.topic.findMany({
+      where: { moduleId },
+      select: { id: true },
+    });
+
+    for (const topic of topics) {
+      await this.deleteTopic(topic.id, actor, { skipAudit: true });
+    }
+
+    await this.prisma.softDelete('Module', moduleId);
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'module.delete',
+      resource: 'course',
+      resourceId: moduleId,
+      before: { topics: topics.length },
+    });
+    return { deleted: true, topics: topics.length };
+  }
+
+  async updateTopic(topicId: string, input: UpdateTopicInput, actor: RequestUser) {
+    const updated = await this.prisma.db.topic.update({
+      where: { id: topicId },
+      data: {
+        ...(input.title !== undefined
+          ? { title: this.sanitizer.sanitizeLocalized(input.title) as never }
+          : {}),
+        ...(input.bloomLevel !== undefined ? { bloomLevel: input.bloomLevel } : {}),
+      },
+      select: { id: true, title: true, bloomLevel: true },
+    });
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'topic.update',
+      resource: 'lesson',
+      resourceId: topicId,
+    });
+    return updated;
+  }
+
+  async deleteTopic(topicId: string, actor: RequestUser, options: { skipAudit?: boolean } = {}) {
+    const lessons = await this.prisma.db.lesson.findMany({
+      where: { topicId },
+      select: { id: true },
+    });
+
+    for (const lesson of lessons) {
+      await this.deleteLesson(lesson.id, actor, { skipAudit: true });
+    }
+
+    await this.prisma.softDelete('Topic', topicId);
+
+    if (!options.skipAudit) {
+      await this.audit.record({
+        actorId: actor.id,
+        action: 'topic.delete',
+        resource: 'lesson',
+        resourceId: topicId,
+        before: { lessons: lessons.length },
+      });
+    }
+    return { deleted: true, lessons: lessons.length };
+  }
+
+  async deleteLesson(lessonId: string, actor: RequestUser, options: { skipAudit?: boolean } = {}) {
+    const resources = await this.prisma.db.resource.findMany({
+      where: { lessonId },
+      select: { id: true },
+    });
+
+    for (const resource of resources) {
+      await this.prisma.softDelete('Resource', resource.id);
+    }
+
+    await this.prisma.softDelete('Lesson', lessonId);
+
+    if (!options.skipAudit) {
+      await this.audit.record({
+        actorId: actor.id,
+        action: 'lesson.delete',
+        resource: 'lesson',
+        resourceId: lessonId,
+        before: { resources: resources.length },
+      });
+    }
+    return { deleted: true, resources: resources.length };
+  }
+
+  /**
+   * Resurs `meta` maydonini tozalaydi.
+   *
+   * `TEXT` bloki HTML qabul qiladi va u DARSDA TO'G'RIDAN-TO'G'RI ko'rsatiladi,
+   * shuning uchun DOMPurify dan o'tkaziladi (§11). Fayl nomlari ham tozalanadi:
+   * ular ro'yxatda matn sifatida chiqadi.
+   */
+  private sanitizeResourceMeta(meta: ResourceMeta | undefined): Record<string, unknown> {
+    if (!meta) return {};
+
+    return {
+      ...(meta.text ? { text: this.sanitizer.sanitizeLocalized(meta.text) } : {}),
+      ...(meta.files
+        ? {
+            files: meta.files.map((file) => ({
+              fileObjectId: file.fileObjectId,
+              name: this.sanitizer.stripHtml(file.name),
+              sizeBytes: file.sizeBytes,
+            })),
+          }
+        : {}),
+      ...(meta.embedHeight ? { embedHeight: meta.embedHeight } : {}),
+    };
+  }
+
+  async updateResource(resourceId: string, input: UpdateResourceInput, actor: RequestUser) {
+    const updated = await this.prisma.db.resource.update({
+      where: { id: resourceId },
+      data: {
+        ...(input.title !== undefined
+          ? { title: this.sanitizer.sanitizeLocalized(input.title) as never }
+          : {}),
+        ...(input.isRequired !== undefined ? { isRequired: input.isRequired } : {}),
+        ...(input.meta !== undefined
+          ? { meta: this.sanitizeResourceMeta(input.meta) as never }
+          : {}),
+        ...(input.externalUrl !== undefined ? { externalUrl: input.externalUrl } : {}),
+      },
+      select: { id: true, title: true, isRequired: true, meta: true, externalUrl: true },
+    });
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'resource.update',
+      resource: 'resource',
+      resourceId: resourceId,
+    });
+    return updated;
+  }
+
+  async deleteResource(resourceId: string, actor: RequestUser) {
+    await this.prisma.softDelete('Resource', resourceId);
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'resource.delete',
+      resource: 'resource',
+      resourceId,
+    });
+    return { deleted: true };
+  }
+
   async createResource(input: CreateResourceInput, actor: RequestUser) {
     const position =
       input.position || (await this.nextPosition('resource', { lessonId: input.lessonId }));
@@ -543,6 +746,8 @@ export class CoursesService {
         kind: input.kind,
         title: this.sanitizer.sanitizeLocalized(input.title) as never,
         externalUrl: input.externalUrl ?? null,
+        // Matn bloki va papka tarkibi shu yerda: turga qarab har xil (F-05)
+        meta: this.sanitizeResourceMeta(input.meta) as never,
         position,
         isRequired: input.isRequired,
       },

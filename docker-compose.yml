@@ -118,6 +118,12 @@ services:
     volumes:
       - ./apps/api/src:/app/apps/api/src
       - ./packages/shared/src:/app/packages/shared/src
+      # `@lms/shared` ishga tushishda `dist` orqali yechiladi, `src` orqali emas.
+      # Bu mount bo'lmasa image ichidagi eski `dist` ishlatiladi va paketdagi
+      # yangi eksportlar konteynerda `undefined` bo'lib qoladi.
+      # Talab: konteynerni ko'tarishdan oldin `npm run build:shared`.
+      - ./packages/shared/dist:/app/packages/shared/dist
+      - ./apps/api/prisma:/app/apps/api/prisma
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -158,6 +164,9 @@ services:
     volumes:
       - ./apps/api/src:/app/apps/api/src
       - ./packages/shared/src:/app/packages/shared/src
+      # Sabab `api` xizmatidagi bilan bir xil
+      - ./packages/shared/dist:/app/packages/shared/dist
+      - ./apps/api/prisma:/app/apps/api/prisma
     depends_on:
       api: { condition: service_started }
       redis: { condition: service_healthy }

@@ -2,7 +2,7 @@
  * Maqsad: F-04 endpointlari — kurs, tuzilma, tartiblash, nusxalash, yozilish.
  */
 
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
@@ -11,6 +11,9 @@ import {
   createLessonSchema,
   createModuleSchema,
   createResourceSchema,
+  updateModuleSchema,
+  updateTopicSchema,
+  updateResourceSchema,
   createTopicSchema,
   cursorPaginationSchema,
   enrollSchema,
@@ -25,6 +28,9 @@ import {
   type CreateLessonInput,
   type CreateModuleInput,
   type CreateResourceInput,
+  type UpdateModuleInput,
+  type UpdateTopicInput,
+  type UpdateResourceInput,
   type CreateTopicInput,
   type CursorPagination,
   type EnrollInput,
@@ -193,6 +199,79 @@ export class CoursesController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.courses.updateLesson(id, dto, actor);
+  }
+
+  @Patch('modules/:id')
+  @RequirePermission('lesson:manage:own_course', { resource: 'module', path: 'params.id' })
+  @ApiOperation({ summary: 'Modulni tahrirlash' })
+  async updateModule(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateModuleSchema)) dto: UpdateModuleInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.updateModule(id, dto, actor);
+  }
+
+  @Delete('modules/:id')
+  @RequirePermission('lesson:manage:own_course', { resource: 'module', path: 'params.id' })
+  @ApiOperation({ summary: "Modulni o'chirish (mavzu va darslari bilan)" })
+  async deleteModule(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.deleteModule(id, actor);
+  }
+
+  @Patch('topics/:id')
+  @RequirePermission('lesson:manage:own_course', { resource: 'topic', path: 'params.id' })
+  @ApiOperation({ summary: 'Mavzuni tahrirlash' })
+  async updateTopic(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateTopicSchema)) dto: UpdateTopicInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.updateTopic(id, dto, actor);
+  }
+
+  @Delete('topics/:id')
+  @RequirePermission('lesson:manage:own_course', { resource: 'topic', path: 'params.id' })
+  @ApiOperation({ summary: "Mavzuni o'chirish (darslari bilan)" })
+  async deleteTopic(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.deleteTopic(id, actor);
+  }
+
+  @Delete('lessons/:id')
+  @RequirePermission('lesson:manage:own_course', { resource: 'lesson', path: 'params.id' })
+  @ApiOperation({ summary: "Darsni o'chirish (resurslari bilan)" })
+  async deleteLesson(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.deleteLesson(id, actor);
+  }
+
+  @Patch('resources/:id')
+  @RequirePermission('resource:manage:own_course', { resource: 'resource', path: 'params.id' })
+  @ApiOperation({ summary: 'Resursni tahrirlash' })
+  async updateResource(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateResourceSchema)) dto: UpdateResourceInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.updateResource(id, dto, actor);
+  }
+
+  @Delete('resources/:id')
+  @RequirePermission('resource:manage:own_course', { resource: 'resource', path: 'params.id' })
+  @ApiOperation({ summary: "Resursni o'chirish" })
+  async deleteResource(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.courses.deleteResource(id, actor);
   }
 
   @Post('resources')

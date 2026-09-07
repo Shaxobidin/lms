@@ -99,6 +99,15 @@ export const envSchema = z.object({
   HEMIS_API_TOKEN: z.string().optional(),
   HEMIS_SYNC_CRON: z.string().default('0 3 * * *'),
 
+  /**
+   * LTI 1.3 tool kaliti (PKCS#8 PEM, `\n` bilan bir qatorda bo'lishi mumkin).
+   * Bo'sh bo'lsa ishga tushishda vaqtinchalik kalit yaratiladi — bu faqat
+   * ishlab chiqish uchun: qayta ishga tushganda JWKS o'zgaradi.
+   */
+  LTI_TOOL_PRIVATE_KEY: z.string().optional(),
+  /** OIDC `state`/`nonce` amal qilish muddati (soniya). */
+  LTI_STATE_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(300),
+
   ONEID_ENABLED: booleanFromString.default(false),
   ONEID_ISSUER: z.string().default(''),
   ONEID_CLIENT_ID: z.string().optional(),

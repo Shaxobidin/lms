@@ -38,6 +38,7 @@ test.describe('Talabaning uzluksiz oqimi', () => {
     const courseCount = await (async () => {
       await page.goto('/uz-Latn/my-courses');
       await waitForContent(page);
+      await courseCards(page).first().waitFor({ state: 'visible', timeout: 20_000 });
       return courseCards(page).count();
     })();
 
@@ -85,8 +86,10 @@ test.describe('Talabaning uzluksiz oqimi', () => {
     await page.goto('/uz-Latn/my-courses');
     await waitForContent(page);
 
-    // Testi bor kursni topamiz
+    // Testi bor kursni topamiz. `count()` kutmaydi — avval birinchi karta
+    // ko'rinishini kutamiz, aks holda skelet holatida 0 chiqadi (poyga).
     const courseLinks = courseCards(page);
+    await courseLinks.first().waitFor({ state: 'visible', timeout: 20_000 });
     const count = await courseLinks.count();
     let quizFound = false;
 
@@ -112,16 +115,31 @@ test.describe('Talabaning uzluksiz oqimi', () => {
 
     await waitForContent(page);
 
+    /**
+     * Urinish boshlanishi ASINXRON: server javobi kelgunicha na taymer, na
+     * xabar bo'ladi. Shuning uchun IKKALA natijadan birini kutamiz —
+     * `isVisible()` ni darhol o'qish poygaga olib keladi va urinishlar
+     * tugagan holatda test noto'g'ri yiqiladi.
+     */
+    const timer = page.getByRole('timer');
+    const exhaustedMessage = page.getByText(/urinishlar soni tugadi/i);
+
+    await expect
+      .poll(async () => (await timer.count()) > 0 || (await exhaustedMessage.count()) > 0, {
+        timeout: 20_000,
+        message: 'Test na boshlandi, na aniq xabar berdi',
+      })
+      .toBe(true);
+
     // Urinishlar tugagan bo'lsa — bu ham TO'G'RI xatti-harakat (F-07):
     // tizim aniq xabar ko'rsatadi va testni boshlamaydi
-    const exhausted = await page.getByText(/urinishlar soni tugadi/i).isVisible();
-    if (exhausted) {
+    if ((await exhaustedMessage.count()) > 0) {
       test.skip(true, 'Urinishlar soni tugagan — bu kutilgan holat');
       return;
     }
 
     // Taymer ishlayotgani ko'rinadi
-    await expect(page.getByRole('timer')).toBeVisible({ timeout: 20_000 });
+    await expect(timer).toBeVisible({ timeout: 20_000 });
 
     // Birinchi savolga javob beramiz
     const firstRadio = page.locator('input[type="radio"]').first();

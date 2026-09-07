@@ -14,6 +14,7 @@ import type {
   CreateMessageInput,
 } from '@lms/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SiteSettingsService } from '../../common/settings/site-settings.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { SanitizerService } from '../../common/security/sanitizer.service';
 import { QueueService } from '../../common/queue/queue.service';
@@ -32,6 +33,7 @@ export class MessagingService {
     private readonly sanitizer: SanitizerService,
     private readonly queue: QueueService,
     private readonly events: EventsService,
+    private readonly siteSettings: SiteSettingsService,
   ) {}
 
   // --- E'lonlar -------------------------------------------------------------
@@ -394,12 +396,27 @@ export class MessagingService {
     if (input.recipientId === actor.id) {
       throw AppException.businessRule('errors.cannot_message_self');
     }
+    // Sayt boshqaruvi → Xabarlar sozlamalari (F-17)
+    if (!(await this.siteSettings.getBoolean('messaging.enabled'))) {
+      throw AppException.businessRule('errors.messaging_disabled');
+    }
 
     const recipient = await this.prisma.db.user.findFirst({
       where: { id: input.recipientId, status: 'ACTIVE' },
-      select: { id: true, locale: true },
+      select: { id: true, locale: true, roles: { select: { role: { select: { code: true } } } } },
     });
     if (!recipient) throw AppException.notFound('user', input.recipientId);
+
+    // Talaba → talaba yozishmasi o'chirilgan bo'lsa (Moodle "student-to-student messaging")
+    const onlyStudent = (codes: string[]) =>
+      codes.length > 0 && codes.every((c) => c === 'STUDENT');
+    if (
+      onlyStudent(actor.roles) &&
+      onlyStudent(recipient.roles.map((entry) => entry.role.code)) &&
+      !(await this.siteSettings.getBoolean('messaging.studentToStudent'))
+    ) {
+      throw AppException.businessRule('errors.student_messaging_restricted');
+    }
 
     const message = await this.prisma.db.message.create({
       data: {
@@ -425,6 +442,85 @@ export class MessagingService {
     await this.queue.enqueue('notification.dispatch', { notificationId: notification.id });
 
     return message;
+  }
+
+  /**
+   * Kimga xabar yozish mumkin (F-10).
+   *
+   * Global foydalanuvchilar ro'yxati ATAYLAB ochilmaydi: §11 bo'yicha shaxsga
+   * doir ma'lumot faqat zarur doirada ko'rinishi kerak, aks holda har qanday
+   * talaba butun universitet ro'yxatini yig'ib olardi.
+   *
+   * Doira umumiy kursdan kelib chiqadi:
+   *  - talaba → o'zi yozilgan kurslarning o'qituvchilari va guruhi kuratori;
+   *  - o'qituvchi/tyutor → o'z kurslariga yozilgan talabalar va hamkasblar.
+   */
+  async messageContacts(actor: RequestUser, search?: string) {
+    const teachingCourseIds = actor.scope.courseIds;
+    const enrolledCourseIds = actor.scope.enrolledCourseIds;
+
+    const conditions: Prisma.UserWhereInput[] = [];
+
+    // Yozilgan kurslarning o'qituvchilari
+    if (enrolledCourseIds.length > 0) {
+      conditions.push({ taughtCourses: { some: { courseId: { in: enrolledCourseIds } } } });
+    }
+
+    // O'z kurslariga yozilgan talabalar va o'sha kurslardagi hamkasblar
+    if (teachingCourseIds.length > 0) {
+      conditions.push({
+        enrollments: {
+          some: { courseId: { in: teachingCourseIds }, status: { in: ['ACTIVE', 'COMPLETED'] } },
+        },
+      });
+      conditions.push({ taughtCourses: { some: { courseId: { in: teachingCourseIds } } } });
+    }
+
+    // Tyutor kurator bo'lgan guruh a'zolari
+    if (actor.scope.groupIds.length > 0) {
+      conditions.push({
+        studentGroups: { some: { groupId: { in: actor.scope.groupIds }, leftAt: null } },
+      });
+    }
+
+    if (conditions.length === 0) return [];
+
+    const normalized = search?.trim();
+
+    const users = await this.prisma.db.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        // O'ziga xabar yozib bo'lmaydi (`sendMessage` ham buni rad etadi)
+        id: { not: actor.id },
+        OR: conditions,
+        ...(normalized
+          ? {
+              profile: {
+                OR: [
+                  { firstName: { contains: normalized, mode: 'insensitive' } },
+                  { lastName: { contains: normalized, mode: 'insensitive' } },
+                ],
+              },
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+      select: {
+        id: true,
+        profile: { select: { firstName: true, lastName: true } },
+        roles: { select: { role: { select: { code: true } } } },
+      },
+    });
+
+    return users
+      .map((user) => ({
+        id: user.id,
+        firstName: user.profile?.firstName ?? '',
+        lastName: user.profile?.lastName ?? '',
+        roles: user.roles.map((row) => row.role.code),
+      }))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName, 'uz'));
   }
 
   async listMessages(actor: RequestUser, box: 'inbox' | 'sent') {

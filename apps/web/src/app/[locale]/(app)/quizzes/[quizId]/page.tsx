@@ -19,6 +19,7 @@ import { AlertTriangle, Clock, Flag, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import type { QuestionResponse } from '@lms/shared';
 import { api, ApiClientError } from '@/lib/api-client';
+import { Select } from '@/components/ui/form-controls';
 import { cn, formatDuration, localize } from '@/lib/utils';
 import { useRouter, type AppLocale } from '@/i18n/routing';
 import {
@@ -459,11 +460,26 @@ function QuestionInput({
 
     case 'NUMERIC': {
       const current = value?.type === 'NUMERIC' ? value.value : null;
+      const range = payload['range'] as { min: number; max: number; step: number } | undefined;
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {range ? (
+            <input
+              type="range"
+              min={range.min}
+              max={range.max}
+              step={range.step}
+              value={current ?? range.min}
+              onChange={(event) => onChange({ type: 'NUMERIC', value: Number(event.target.value) })}
+              className="w-56 max-w-full accent-primary"
+              aria-label={t('quizzes.slider')}
+            />
+          ) : null}
           <Input
             type="number"
-            step="any"
+            step={range ? range.step : 'any'}
+            min={range?.min}
+            max={range?.max}
             value={current ?? ''}
             onChange={(event) =>
               onChange({
@@ -520,8 +536,13 @@ function QuestionInput({
     }
 
     case 'CLOZE': {
-      const blanks = (payload['blanks'] ?? []) as Array<{ key: string }>;
+      const blanks = (payload['blanks'] ?? []) as Array<{ key: string; options?: string[] }>;
       const current = value?.type === 'CLOZE' ? value.blanks : [];
+      const setBlank = (key: string, nextValue: string) => {
+        const next = current.filter((item) => item.key !== key);
+        next.push({ key, value: nextValue });
+        onChange({ type: 'CLOZE', blanks: next });
+      };
 
       return (
         <div className="space-y-2">
@@ -532,15 +553,27 @@ function QuestionInput({
           {blanks.map((blank) => (
             <div key={blank.key} className="flex items-center gap-2">
               <span className="w-8 shrink-0 text-xs text-muted-foreground">[{blank.key}]</span>
-              <Input
-                value={current.find((item) => item.key === blank.key)?.value ?? ''}
-                onChange={(event) => {
-                  const next = current.filter((item) => item.key !== blank.key);
-                  next.push({ key: blank.key, value: event.target.value });
-                  onChange({ type: 'CLOZE', blanks: next });
-                }}
-                aria-label={`${t('quizzes.CLOZE')} ${blank.key}`}
-              />
+              {blank.options && blank.options.length > 0 ? (
+                // Ro'yxatli bo'shliq (QTI inlineChoice): yozilmaydi, tanlanadi
+                <Select
+                  value={current.find((item) => item.key === blank.key)?.value ?? ''}
+                  onChange={(event) => setBlank(blank.key, event.target.value)}
+                  aria-label={`${t('quizzes.CLOZE')} ${blank.key}`}
+                >
+                  <option value="">—</option>
+                  {blank.options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  value={current.find((item) => item.key === blank.key)?.value ?? ''}
+                  onChange={(event) => setBlank(blank.key, event.target.value)}
+                  aria-label={`${t('quizzes.CLOZE')} ${blank.key}`}
+                />
+              )}
             </div>
           ))}
         </div>

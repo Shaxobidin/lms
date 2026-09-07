@@ -22,16 +22,25 @@ import {
   FileText,
   GraduationCap,
   LayoutDashboard,
+  Library,
   Menu,
   MessageSquare,
   Moon,
   Search,
+  Plug,
   Settings,
   Shield,
   Sun,
   Users,
   Video,
   X,
+  SlidersHorizontal,
+  ListChecks,
+  RotateCcw,
+  Route,
+  IdCard,
+  MessageSquareText,
+  LifeBuoy,
 } from 'lucide-react';
 import type { PermissionKey } from '@lms/shared';
 import {
@@ -43,6 +52,7 @@ import {
   type AppLocale,
 } from '@/i18n/routing';
 import { useAuthStore } from '@/lib/auth-store';
+import { usePublicSettings } from '@/lib/public-settings';
 import { cn, initials } from '@/lib/utils';
 import { Button, Spinner } from '@/components/ui/primitives';
 import { NotificationBell } from './notification-bell';
@@ -56,6 +66,10 @@ interface NavItem {
   permissions?: PermissionKey[];
   /** Ruxsat talab qilinmaydi (barcha autentifikatsiyadan o'tganlar uchun). */
   always?: boolean;
+  /** Sayt boshqaruvidagi ochiq modul kaliti `false` bo'lsa band yashirinadi (F-17). */
+  settingKey?: string;
+  /** Faqat shu rollardan biriga ega foydalanuvchiga ko'rsatiladi (HEMIS "Talaba" bo'limi). */
+  roles?: string[];
 }
 
 const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
@@ -81,6 +95,53 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
         ],
       },
       { href: '/schedule', labelKey: 'nav.schedule', icon: CalendarDays, always: true },
+    ],
+  },
+  {
+    // HEMIS uslubidagi "Talaba" bo'limi — faqat talabalarga
+    titleKey: 'nav.student',
+    items: [
+      {
+        href: '/student/electives',
+        labelKey: 'nav.studentElectives',
+        icon: ListChecks,
+        roles: ['STUDENT'],
+      },
+      { href: '/my-courses', labelKey: 'nav.studentSubjects', icon: BookOpen, roles: ['STUDENT'] },
+      { href: '/schedule', labelKey: 'nav.schedule', icon: CalendarDays, roles: ['STUDENT'] },
+      {
+        href: '/assignments',
+        labelKey: 'nav.studentTasks',
+        icon: ClipboardList,
+        roles: ['STUDENT'],
+      },
+      {
+        href: '/student/retakes',
+        labelKey: 'nav.studentRetakes',
+        icon: RotateCcw,
+        roles: ['STUDENT'],
+      },
+      {
+        href: '/student/finals',
+        labelKey: 'nav.studentFinals',
+        icon: GraduationCap,
+        roles: ['STUDENT'],
+      },
+      { href: '/student/plan', labelKey: 'nav.studentPlan', icon: Route, roles: ['STUDENT'] },
+      { href: '/student/info', labelKey: 'nav.studentInfo', icon: IdCard, roles: ['STUDENT'] },
+      {
+        href: '/student/surveys',
+        labelKey: 'nav.studentSurveys',
+        icon: MessageSquareText,
+        roles: ['STUDENT'],
+        settingKey: 'feedback.enabled',
+      },
+      {
+        href: '/student/services',
+        labelKey: 'nav.studentServices',
+        icon: LifeBuoy,
+        roles: ['STUDENT'],
+      },
     ],
   },
   {
@@ -113,6 +174,12 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
         labelKey: 'nav.classroom',
         icon: Video,
         permissions: ['classroom:read:own', 'classroom:manage:own_course'],
+      },
+      {
+        href: '/question-banks',
+        labelKey: 'nav.questionBanks',
+        icon: Library,
+        permissions: ['questionbank:manage:own_course', 'questionbank:read:own_department'],
       },
     ],
   },
@@ -176,12 +243,19 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
   {
     titleKey: 'nav.messages',
     items: [
-      { href: '/messages', labelKey: 'nav.messages', icon: MessageSquare, always: true },
+      {
+        href: '/messages',
+        labelKey: 'nav.messages',
+        icon: MessageSquare,
+        always: true,
+        settingKey: 'messaging.enabled',
+      },
       {
         href: '/achievements',
         labelKey: 'nav.achievements',
         icon: Award,
         permissions: ['badge:read:own'],
+        settingKey: 'badges.enabled',
       },
     ],
   },
@@ -206,6 +280,34 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
         icon: Settings,
         permissions: ['system:read:all', 'system:manage:all'],
       },
+      {
+        href: '/admin/student-requests',
+        labelKey: 'nav.studentRequests',
+        icon: LifeBuoy,
+        permissions: [
+          'studentrequest:manage:all',
+          'studentrequest:manage:own_faculty',
+          'studentrequest:read:own_group',
+        ],
+      },
+      {
+        href: '/admin/surveys',
+        labelKey: 'nav.surveys',
+        icon: MessageSquareText,
+        permissions: ['survey:manage:all', 'survey:manage:own_faculty'],
+      },
+      {
+        href: '/admin/site',
+        labelKey: 'nav.siteAdmin',
+        icon: SlidersHorizontal,
+        permissions: ['system:read:all', 'system:manage:all'],
+      },
+      {
+        href: '/admin/lti',
+        labelKey: 'nav.lti',
+        icon: Plug,
+        permissions: ['integration:read:all', 'integration:manage:all'],
+      },
     ],
   },
 ];
@@ -218,6 +320,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const { user, status, can, signOut } = useAuthStore();
+  const siteSettings = usePublicSettings();
 
   // Autentifikatsiyadan o'tmagan foydalanuvchini login sahifasiga yo'naltiramiz
   useEffect(() => {
@@ -246,7 +349,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return NAV_GROUPS.map((group) => ({
       ...group,
       items: group.items.filter(
-        (item) => item.always || (item.permissions ?? []).some((permission) => can(permission)),
+        (item) =>
+          (item.always ||
+            (item.permissions ?? []).some((permission) => can(permission)) ||
+            (item.roles ?? []).some((role) => user?.roles.includes(role as never))) &&
+          (!item.settingKey || siteSettings.enabled(item.settingKey)),
       ),
     })).filter((group) => group.items.length > 0);
   }, [user, can]);
@@ -283,7 +390,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex h-14 items-center justify-between border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
             <GraduationCap className="size-5 text-primary" aria-hidden="true" />
-            <span>{t('app.name')}</span>
+            <span>{siteSettings.get<string>('mobile.appTitle') || t('app.name')}</span>
           </Link>
           <Button
             variant="ghost"

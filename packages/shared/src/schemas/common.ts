@@ -7,6 +7,18 @@ import { LOCALES } from '../constants/locales';
 
 export const uuidSchema = z.string().uuid({ message: 'validation.uuid' });
 
+/**
+ * Tashqi manzil — faqat `http(s)`. Zod `url()` har qanday sxemani (`javascript:`,
+ * `data:`) qabul qiladi; talabaga havola sifatida ko'rsatiladigan manzil uchun
+ * bu XSS yo'li bo'lardi.
+ */
+export const httpUrlSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .url({ message: 'validation.url' })
+  .refine((value) => /^https?:\/\//i.test(value), { message: 'validation.url_http_only' });
+
 export const localeSchema = z.enum(LOCALES);
 
 /** O'zbekiston telefon raqami: `+998` va 9 ta raqam (probel/tirelar tozalanadi). */
@@ -85,6 +97,8 @@ export const ALLOWED_MIME_TYPES = [
   'audio/ogg',
   'text/plain',
   'text/csv',
+  /** QTI import — matnli tur, magic bytes tekshiruvi talab qilinmaydi. */
+  'text/xml',
 ] as const;
 
 export const mimeTypeSchema = z.enum(ALLOWED_MIME_TYPES);
