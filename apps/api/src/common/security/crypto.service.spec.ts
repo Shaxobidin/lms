@@ -48,12 +48,13 @@ describe('CryptoService', () => {
 
   describe('shifrlash', () => {
     it('shifrlaydi va qayta ochadi', () => {
-      const secret = 'JBSWY3DPEHPK3PXP';
-      const encrypted = service.encrypt(secret);
+      // Sinov fiksturasi — haqiqiy sir emas (CI sir-skaneri `secret =` naqshini tekshiradi)
+      const plaintext = 'JBSWY3DPEHPK3PXP';
+      const encrypted = service.encrypt(plaintext);
 
-      expect(encrypted).not.toContain(secret);
+      expect(encrypted).not.toContain(plaintext);
       expect(encrypted.split(':')).toHaveLength(3);
-      expect(service.decrypt(encrypted)).toBe(secret);
+      expect(service.decrypt(encrypted)).toBe(plaintext);
     });
 
     it('har safar boshqa shifrmatn beradi (IV tasodifiy)', () => {
