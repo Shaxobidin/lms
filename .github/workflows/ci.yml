@@ -123,6 +123,10 @@ jobs:
       - run: npm ci
       - run: npm run build:shared
 
+      # ts-jest `prisma.service.ts` ni kompilyatsiya qiladi — generatsiya qilingan klient kerak
+      - name: Prisma klientini generatsiya qilish
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
       - name: Umumiy paket testlari
         run: npm test --workspace=@lms/shared
 
