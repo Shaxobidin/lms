@@ -22,12 +22,16 @@ import {
 } from '@lms/shared';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SiteSettingsService } from '../../common/settings/site-settings.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CryptoService } from '../../common/security/crypto.service';
 import { RateLimitService } from '../../common/http/rate-limit.service';
 import { QueueService } from '../../common/queue/queue.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { AppException } from '../../common/errors/app.exception';
+import { parseTtlSeconds } from '../../common/auth/ttl';
+
+export { parseTtlSeconds };
 import type { AccessTokenPayload } from '../../common/auth/auth.types';
 
 export interface LoginContext {
@@ -55,6 +59,7 @@ export class AuthService {
     private readonly rateLimit: RateLimitService,
     private readonly queue: QueueService,
     private readonly audit: AuditService,
+    private readonly siteSettings: SiteSettingsService,
   ) {
     // TOTP: 30 soniyalik oyna, oldingi/keyingi oynaga ham ruxsat
     // (foydalanuvchi soati biroz farq qilishi mumkin)
@@ -170,6 +175,54 @@ export class AuthService {
   }
 
   /**
+   * Tashqi identifikatsiya (LTI 1.3) orqali kirish: parol tekshirilmaydi —
+   * platforma imzolagan token allaqachon tekshirilgan. Sessiya va audit
+   * oddiy kirish bilan bir xil, faqat `provider` belgilanadi.
+   */
+  async loginExternal(
+    userId: string,
+    provider: string,
+    context: LoginContext,
+  ): Promise<LoginResult> {
+    const user = await this.prisma.db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, status: true },
+    });
+    if (!user) throw AppException.notFound('user', userId);
+    if (user.status !== 'ACTIVE') throw AppException.unauthenticated('account_inactive');
+
+    await this.prisma.db.user.update({
+      where: { id: user.id },
+      data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
+    });
+
+    const session = await this.createSession(user.id, context, false);
+    const profile = await this.buildAuthenticatedUser(user.id);
+
+    await this.audit.record({
+      actorId: user.id,
+      action: 'auth.login',
+      resource: 'user',
+      resourceId: user.id,
+      after: { provider },
+      ip: context.ip,
+      userAgent: context.userAgent,
+      traceId: context.traceId,
+    });
+
+    return {
+      tokens: await this.issueAccessToken(
+        user.id,
+        user.email,
+        profile.roles as RoleCode[],
+        session.id,
+      ),
+      user: profile,
+      refreshToken: session.refreshToken,
+    };
+  }
+
+  /**
    * Refresh token rotatsiyasi + reuse detection (ADR-005).
    *
    * Agar allaqachon ishlatilgan (rotatsiya qilingan) token qayta kelsa —
@@ -250,23 +303,40 @@ export class AuthService {
   // --- Ro'yxatdan o'tish va parol -------------------------------------------
 
   async register(input: RegisterInput, context: LoginContext): Promise<{ userId: string }> {
+    // Sayt boshqaruvi → Ro'yxatdan o'tish (F-17): yoqilganmi, domen, beriladigan rol
+    if (!(await this.siteSettings.getBoolean('registration.enabled'))) {
+      throw AppException.businessRule('errors.registration_disabled');
+    }
+    const allowedDomains = await this.siteSettings.getList('registration.allowedEmailDomains');
+    const emailDomain = input.email.split('@')[1]?.toLowerCase() ?? '';
+    if (
+      allowedDomains.length > 0 &&
+      !allowedDomains.some((domain) => domain.toLowerCase().replace(/^@/, '') === emailDomain)
+    ) {
+      throw AppException.businessRule('errors.email_domain_not_allowed', {
+        domain: emailDomain,
+      });
+    }
+
     const existing = await this.prisma.db.user.findFirst({
       where: { email: input.email },
       select: { id: true },
     });
     if (existing) throw AppException.conflict('errors.email_already_used');
 
-    this.assertPasswordPolicy(input.password);
+    this.assertPasswordPolicy(input.password, await this.passwordMinLengthOverride());
 
+    const defaultRoleCode = await this.siteSettings.get<string>('registration.defaultRole');
+    const roleCode = defaultRoleCode === 'GUEST' ? 'GUEST' : 'STUDENT';
     const studentRole = await this.prisma.db.role.findUnique({
-      where: { code: 'STUDENT' },
+      where: { code: roleCode },
       select: { id: true },
     });
     if (!studentRole) {
       throw new AppException({
         code: 'INTERNAL_ERROR',
         messageKey: 'errors.role_catalog_missing',
-        context: { role: 'STUDENT' },
+        context: { role: roleCode },
       });
     }
 
@@ -376,7 +446,7 @@ export class AuthService {
     });
     if (!record) throw AppException.businessRule('errors.reset_token_invalid');
 
-    this.assertPasswordPolicy(input.password);
+    this.assertPasswordPolicy(input.password, await this.passwordMinLengthOverride());
     await this.assertPasswordNotReused(record.userId, input.password);
 
     const passwordHash = await this.crypto.hashPassword(input.password);
@@ -419,7 +489,7 @@ export class AuthService {
       });
     }
 
-    this.assertPasswordPolicy(input.newPassword);
+    this.assertPasswordPolicy(input.newPassword, await this.passwordMinLengthOverride());
     await this.assertPasswordNotReused(userId, input.newPassword);
 
     const passwordHash = await this.crypto.hashPassword(input.newPassword);
@@ -665,8 +735,17 @@ export class AuthService {
   }
 
   /** Parol siyosati (§11) — `.env` orqali sozlanadi. */
-  assertPasswordPolicy(password: string): void {
-    const minLength = this.config.get('PASSWORD_MIN_LENGTH', { infer: true });
+  /** Sayt boshqaruvidagi `security.passwordMinLength` — `.env` dan kichik bo'lsa e'tiborsiz. */
+  private async passwordMinLengthOverride(): Promise<number> {
+    const value = await this.siteSettings.get<number>('security.passwordMinLength');
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  assertPasswordPolicy(password: string, minLengthOverride = 0): void {
+    const minLength = Math.max(
+      this.config.get('PASSWORD_MIN_LENGTH', { infer: true }),
+      minLengthOverride,
+    );
     const errors: Array<{ field: string; code: string }> = [];
 
     if (password.length < minLength) {
@@ -734,23 +813,6 @@ const COMMON_PASSWORDS = new Set([
 
 function uniq(values: Array<string | null>): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v))));
-}
-
-/** `15m`, `30d`, `3600` kabi qiymatlarni soniyaga o'giradi. */
-export function parseTtlSeconds(ttl: string): number {
-  const match = /^(\d+)([smhd])?$/.exec(ttl.trim());
-  if (!match) return 900;
-  const value = Number(match[1]);
-  switch (match[2]) {
-    case 'm':
-      return value * 60;
-    case 'h':
-      return value * 3600;
-    case 'd':
-      return value * 86_400;
-    default:
-      return value;
-  }
 }
 
 function buildUserSearchText(firstName: string, lastName: string, email: string): string {

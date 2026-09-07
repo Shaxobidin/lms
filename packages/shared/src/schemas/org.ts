@@ -88,6 +88,43 @@ export const createSemesterSchema = z
     path: ['endsAt'],
   });
 
+/**
+ * O'quv yili va semestrni yangilash.
+ *
+ * `create*` sxemalari `.refine()` bilan o'ralgan (`ZodEffects`), unda `.partial()`
+ * yo'q — shuning uchun maydonlar aniq sanab o'tiladi. Sana juftligi berilsa,
+ * tartib yana tekshiriladi.
+ */
+export const updateAcademicYearSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{4}$/, { message: 'validation.academic_year_format' })
+      .optional(),
+    startsAt: isoDateSchema.optional(),
+    endsAt: isoDateSchema.optional(),
+    isCurrent: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      !value.startsAt || !value.endsAt || new Date(value.startsAt) < new Date(value.endsAt),
+    { message: 'validation.start_before_end', path: ['endsAt'] },
+  );
+
+export const updateSemesterSchema = z
+  .object({
+    startsAt: isoDateSchema.optional(),
+    endsAt: isoDateSchema.optional(),
+    isCurrent: z.boolean().optional(),
+    gradingClosesAt: isoDateSchema.nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      !value.startsAt || !value.endsAt || new Date(value.startsAt) < new Date(value.endsAt),
+    { message: 'validation.start_before_end', path: ['endsAt'] },
+  );
+
 /** Talabani guruhga biriktirish / ko'chirish. */
 export const assignStudentToGroupSchema = z.object({
   userId: uuidSchema,
@@ -102,5 +139,7 @@ export type CreateSpecialityInput = z.infer<typeof createSpecialitySchema>;
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type CreateAcademicYearInput = z.infer<typeof createAcademicYearSchema>;
 export type CreateSemesterInput = z.infer<typeof createSemesterSchema>;
+export type UpdateAcademicYearInput = z.infer<typeof updateAcademicYearSchema>;
+export type UpdateSemesterInput = z.infer<typeof updateSemesterSchema>;
 export type EducationForm = (typeof EDUCATION_FORMS)[number];
 export type EducationLevel = (typeof EDUCATION_LEVELS)[number];

@@ -20,17 +20,17 @@ export const localizedTextSchema = z
     message: 'localized.at_least_one_locale_required',
   });
 
-/** Uzun matnlar (tavsif, sillabus bo'limlari) uchun kengaytirilgan limit. */
-export const localizedRichTextSchema = z
-  .object({
-    'uz-Latn': z.string().trim().max(200_000).optional(),
-    'uz-Cyrl': z.string().trim().max(200_000).optional(),
-    ru: z.string().trim().max(200_000).optional(),
-    en: z.string().trim().max(200_000).optional(),
-  })
-  .refine((value) => LOCALES.some((locale) => Boolean(value[locale])), {
-    message: 'localized.at_least_one_locale_required',
-  });
+/**
+ * Uzun matnlar (tavsif, dars mazmuni, sillabus bo'limlari) uchun kengaytirilgan limit.
+ * Bo'sh bo'lishi MUMKIN: Moodle kabi tavsifsiz element yoki hali yozilmagan dars
+ * yaroqli holat — majburiylik `localizedTextSchema` (sarlavha) da.
+ */
+export const localizedRichTextSchema = z.object({
+  'uz-Latn': z.string().trim().max(200_000).optional(),
+  'uz-Cyrl': z.string().trim().max(200_000).optional(),
+  ru: z.string().trim().max(200_000).optional(),
+  en: z.string().trim().max(200_000).optional(),
+});
 
 /**
  * Matnni so'ralgan tilda qaytaradi; bo'lmasa fallback zanjiri bo'yicha izlaydi.

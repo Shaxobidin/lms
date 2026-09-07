@@ -15,6 +15,7 @@ import { GraduationCap, Lock } from 'lucide-react';
 import { loginSchema, type LoginInput } from '@lms/shared';
 import { useRouter, Link } from '@/i18n/routing';
 import { defaultRouteForRoles, useAuthStore } from '@/lib/auth-store';
+import { usePublicSettings } from '@/lib/public-settings';
 import { ApiClientError } from '@/lib/api-client';
 import {
   Alert,
@@ -37,6 +38,7 @@ export default function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
 
+  const siteSettings = usePublicSettings();
   const {
     register,
     handleSubmit,
@@ -51,7 +53,13 @@ export default function LoginPage() {
 
     try {
       const user = await signIn(values);
-      router.replace(defaultRouteForRoles(user.roles) as '/dashboard');
+      // Sayt boshqaruvi → Bosh sahifa: kirgan foydalanuvchi uchun standart sahifa (F-17)
+      const preferred = siteSettings.get<string>('frontpage.loggedInDefault');
+      const target =
+        preferred === 'my-courses' || preferred === 'courses'
+          ? `/${preferred}`
+          : defaultRouteForRoles(user.roles);
+      router.replace(target as '/dashboard');
     } catch (error) {
       if (error instanceof ApiClientError) {
         if (error.code === 'TWO_FACTOR_REQUIRED') {

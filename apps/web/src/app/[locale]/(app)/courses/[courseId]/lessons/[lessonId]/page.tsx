@@ -12,10 +12,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { CheckCircle2, Download, FileText, Film, Link2, Music } from 'lucide-react';
+import { CheckCircle2, Download, FileText, Film, FolderOpen, Link2, Music } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api-client';
+import { LessonHtml } from '@/components/course/lesson-html';
 import { localize } from '@/lib/utils';
+import { formatFileSize } from '@/lib/upload';
 import { Link, type AppLocale } from '@/i18n/routing';
 import { Badge, Button, Card, CardContent, ErrorState, Skeleton } from '@/components/ui/primitives';
 
@@ -24,6 +26,12 @@ interface LessonResource {
   kind: string;
   title: unknown;
   externalUrl: string | null;
+  isRequired?: boolean;
+  meta?: {
+    text?: Record<string, string>;
+    files?: Array<{ fileObjectId: string; name: string; sizeBytes: number }>;
+    embedHeight?: number;
+  } | null;
   file: { id: string; objectKey: string; mimeType: string } | null;
 }
 
@@ -164,7 +172,7 @@ export default function LessonPage() {
 
       {/* Kontent server tomonida DOMPurify bilan tozalangan (§11) */}
       {contentHtml ? (
-        <div className="prose-lms" dangerouslySetInnerHTML={{ __html: contentHtml }} />
+        <LessonHtml className="prose-lms" html={contentHtml} />
       ) : (
         <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           {t('courses.structureEmpty')}
@@ -178,6 +186,33 @@ export default function LessonPage() {
             <ul className="space-y-1.5">
               {data.resources.map((resource) => {
                 const Icon = RESOURCE_ICONS[resource.kind] ?? FileText;
+
+                // Matn bloki va ko'milgan kontent JOYIDA ko'rsatiladi — ular
+                // ochiladigan havola emas (Moodle: Label va Embedded content)
+                if (resource.kind === 'TEXT') {
+                  return (
+                    <li key={resource.id}>
+                      <TextBlock resource={resource} locale={locale} />
+                    </li>
+                  );
+                }
+
+                if (resource.kind === 'EMBED' || resource.kind === 'H5P') {
+                  return (
+                    <li key={resource.id}>
+                      <EmbedBlock resource={resource} locale={locale} />
+                    </li>
+                  );
+                }
+
+                if (resource.kind === 'FOLDER') {
+                  return (
+                    <li key={resource.id}>
+                      <FolderBlock resource={resource} locale={locale} />
+                    </li>
+                  );
+                }
+
                 return (
                   <li key={resource.id}>
                     <ResourceLink
@@ -268,6 +303,122 @@ function ResourceLink({
       {icon}
       <span className="flex-1 truncate">{localize(resource.title, locale)}</span>
       <Badge variant="outline">{resource.kind}</Badge>
+    </button>
+  );
+}
+
+/**
+ * Matn bloki (Moodle: Label) — darsda joyida ko'rinadigan izoh yoki sarlavha.
+ * Mazmun serverda DOMPurify dan o'tgan, shuning uchun bu yerda xavfsiz.
+ */
+function TextBlock({ resource, locale }: { resource: LessonResource; locale: AppLocale }) {
+  const html = resource.meta?.text?.[locale] ?? resource.meta?.text?.['uz-Latn'] ?? '';
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-3">
+      <p className="mb-1 text-xs font-medium text-muted-foreground">
+        {localize(resource.title, locale)}
+      </p>
+      <LessonHtml className="prose-lms text-sm" html={html} />
+    </div>
+  );
+}
+
+/**
+ * Ko'milgan interaktiv kontent (H5P, GeoGebra, video pleer).
+ *
+ * `sandbox` MAJBURIY: tashqi sahifa bizning sessiyamizga tegmasligi kerak.
+ * `allow-same-origin` berilmagan, shuning uchun iframe ichidagi kod bizning
+ * cookie va localStorage imizga kira olmaydi (§11).
+ */
+function EmbedBlock({ resource, locale }: { resource: LessonResource; locale: AppLocale }) {
+  const height = resource.meta?.embedHeight ?? 480;
+
+  if (!resource.externalUrl) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">
+        {localize(resource.title, locale)}
+      </p>
+      <iframe
+        src={resource.externalUrl}
+        title={localize(resource.title, locale)}
+        height={height}
+        sandbox="allow-scripts allow-popups allow-forms"
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        className="w-full rounded-md border border-border"
+      />
+    </div>
+  );
+}
+
+/** Fayllar papkasi (Moodle: Folder) — bitta yig'iladigan element. */
+function FolderBlock({ resource, locale }: { resource: LessonResource; locale: AppLocale }) {
+  const t = useTranslations();
+  const [open, setOpen] = useState(false);
+  const files = resource.meta?.files ?? [];
+
+  return (
+    <div className="rounded-md border border-border">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+      >
+        <FolderOpen className="size-4 text-muted-foreground" aria-hidden="true" />
+        <span className="flex-1 truncate">{localize(resource.title, locale)}</span>
+        <Badge variant="outline">
+          {files.length} {t('activities.filesCount')}
+        </Badge>
+      </button>
+
+      {open ? (
+        <ul className="divide-y divide-border/60 border-t border-border">
+          {files.map((file) => (
+            <li key={file.fileObjectId}>
+              <FolderFile file={file} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/** Papkadagi bitta fayl — bosilganda vaqtinchalik havola olinadi. */
+function FolderFile({ file }: { file: { fileObjectId: string; name: string; sizeBytes: number } }) {
+  const t = useTranslations();
+  const [loading, setLoading] = useState(false);
+
+  const open = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get<{ url: string }>(
+        `/content/files/${file.fileObjectId}/download`,
+      );
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch {
+      toast.error(t('errors.internal'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={loading}
+      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent disabled:opacity-60"
+    >
+      <Download className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="flex-1 truncate">{file.name}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {formatFileSize(file.sizeBytes)}
+      </span>
     </button>
   );
 }

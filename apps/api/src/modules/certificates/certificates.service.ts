@@ -69,6 +69,28 @@ export class CertificatesService {
         select: { userId: true },
       });
       userIds = completed.map((item) => item.userId);
+    } else {
+      /**
+       * Aniq ko'rsatilgan talabalar KURSGA YOZILGAN bo'lishi shart. Aks holda
+       * identifikatorini bilgan har kimga sertifikat berib bo'lardi — bu
+       * reestrning ishonchliligini buzadi (§16). Chiqib ketganlar ham hisobga
+       * olinmaydi.
+       */
+      const enrolled = await this.prisma.db.enrollment.findMany({
+        where: {
+          courseId: input.courseId,
+          userId: { in: userIds },
+          status: { not: 'WITHDRAWN' },
+        },
+        select: { userId: true },
+      });
+      const enrolledIds = new Set(enrolled.map((item) => item.userId));
+      const outsiders = userIds.filter((id) => !enrolledIds.has(id));
+      if (outsiders.length > 0) {
+        throw AppException.businessRule('errors.certificate_not_enrolled', {
+          count: outsiders.length,
+        });
+      }
     }
 
     if (userIds.length === 0) {
@@ -416,10 +438,17 @@ export class CertificatesService {
   }
 
   /** Sertifikatlar reestri (F-12). */
-  async registry(filters: { courseId?: string; userId?: string; status?: string }) {
+  async registry(filters: {
+    courseId?: string;
+    /** O'qituvchi doirasi: faqat shu kurslar (kontroller beradi). */
+    courseIds?: string[];
+    userId?: string;
+    status?: string;
+  }) {
     return this.prisma.db.certificate.findMany({
       where: {
         ...(filters.courseId ? { courseId: filters.courseId } : {}),
+        ...(filters.courseIds ? { courseId: { in: filters.courseIds } } : {}),
         ...(filters.userId ? { userId: filters.userId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
       },

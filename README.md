@@ -129,9 +129,9 @@ frontend ham bir xil zod sxemalari va ruxsat mantig'idan foydalanadi.
 | `npm run dev`             | API va web ni hot-reload bilan ishga tushirish     |
 | `npm run build`           | Barcha paketlarni qurish                           |
 | `npm run verify`          | Format + lint + tiplar + TODO + i18n + testlar     |
-| `npm test`                | Unit testlar (248 ta: shared, API, web)            |
+| `npm test`                | Unit testlar (256 ta: shared, API, web)            |
 | `npm run test:cov`        | Qamrov bilan (chegara: 70%)                        |
-| `npm run test:e2e`        | Playwright e2e testlari (43 ta)                    |
+| `npm run test:e2e`        | Playwright e2e testlari (48 ta)                    |
 | `npm run db:migrate`      | Yangi migratsiya yaratish                          |
 | `npm run db:deploy`       | Migratsiyalarni qo'llash                           |
 | `npm run db:seed`         | Demo ma'lumotlarni yuklash                         |
@@ -141,6 +141,7 @@ frontend ham bir xil zod sxemalari va ruxsat mantig'idan foydalanadi.
 | `npm run check:documents` | Hujjat va sertifikat oqimi (GOST DOCX, PDF, QR)    |
 | `npm run check:queues`    | Navbat oqimi: xat yuborish va sertifikat PDF       |
 | `npm run load-test`       | Yuk sinovi: p95 kechikish va tezlik (NF-01/NF-02)  |
+| `npm run check:builder`   | Kurs konstruktori: tuzilma, materiallar, ruxsatlar |
 
 ---
 
@@ -200,7 +201,7 @@ Har biri **adapter pattern** orqali — real kalitlarsiz ham tizim to'liq ishlay
 | [`docs/deploy.md`](docs/deploy.md)                   | Deploy, zaxira nusxa, monitoring                         |
 | [`docs/load-test.md`](docs/load-test.md)             | Yuk sinovi metodikasi va natijalari                      |
 | [`docs/progress.md`](docs/progress.md)               | Bajarilgan ishlar va holat                               |
-| `apps/api/openapi.json`                              | OpenAPI 3.1 spetsifikatsiyasi (155 yo`l, 176 operatsiya) |
+| `apps/api/openapi.json`                              | OpenAPI 3.1 spetsifikatsiyasi (158 yo`l, 183 operatsiya) |
 
 ---
 

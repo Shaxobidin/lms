@@ -36,6 +36,23 @@ export const createRubricSchema = z.object({
   criteria: z.array(rubricCriterionSchema).min(1).max(30),
 });
 
+/**
+ * Rubrikani yangilash.
+ *
+ * Mezonlar TO'LIQ ro'yxat sifatida yuboriladi. Mavjud mezonda `id` bo'lsa u
+ * saqlanadi — bu muhim, chunki qo'yilgan ballar (`RubricScore`) aynan mezon
+ * `id` siga bog'langan. `id` siz mezon yangi sifatida yaratiladi, ro'yxatga
+ * kirmagani esa mantiqiy o'chiriladi.
+ */
+export const updateRubricSchema = z.object({
+  title: localizedTextSchema,
+  description: localizedTextSchema.optional(),
+  criteria: z
+    .array(rubricCriterionSchema.extend({ id: uuidSchema.optional() }))
+    .min(1)
+    .max(30),
+});
+
 export const createAssignmentSchema = z
   .object({
     courseId: uuidSchema,
@@ -76,9 +93,18 @@ export const updateAssignmentSchema = z.object({
   dueAt: z.coerce.date().optional(),
   lateUntil: z.coerce.date().nullable().optional(),
   latePenaltyPercent: z.coerce.number().min(0).max(100).optional(),
+  maxAttempts: z.coerce.number().int().min(1).max(10).optional(),
   rubricId: uuidSchema.nullable().optional(),
+  peerReviewEnabled: z.boolean().optional(),
+  peerReviewCount: z.coerce.number().int().min(0).max(10).optional(),
+  peerReviewDueAt: z.coerce.date().nullable().optional(),
+  plagiarismCheck: z.boolean().optional(),
+  allowedMimeTypes: z.array(mimeTypeSchema).max(20).optional(),
+  maxFileSizeMb: z.coerce.number().int().min(1).max(512).optional(),
+  maxFiles: z.coerce.number().int().min(0).max(20).optional(),
   isPublished: z.boolean().optional(),
 });
+export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
 
 export const createSubmissionSchema = z.object({
   assignmentId: uuidSchema,
@@ -141,6 +167,7 @@ export const listSubmissionsSchema = z.object({
 
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 export type CreateRubricInput = z.infer<typeof createRubricSchema>;
+export type UpdateRubricInput = z.infer<typeof updateRubricSchema>;
 export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
 export type GradeSubmissionInput = z.infer<typeof gradeSubmissionSchema>;
 export type PeerReviewInput = z.infer<typeof peerReviewSchema>;

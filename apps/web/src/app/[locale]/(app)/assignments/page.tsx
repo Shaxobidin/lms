@@ -136,9 +136,14 @@ export default function AssignmentsPage() {
                     {row.score !== null ? ` · ${Number(row.score).toFixed(1)}` : ''}
                   </Badge>
 
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/courses/${row.assignment.courseId}` as '/courses'}>
-                      {t('nav.courses')}
+                  {/* Baholash ish o'rni: rubrika va navbat bilan baholash shu yerda */}
+                  <Button
+                    asChild
+                    size="sm"
+                    variant={isTeacher && !row.gradedAt ? 'default' : 'outline'}
+                  >
+                    <Link href={`/assignments/${row.assignment.id}`}>
+                      {isTeacher ? t('assignments.grade') : t('common.more')}
                     </Link>
                   </Button>
                 </div>

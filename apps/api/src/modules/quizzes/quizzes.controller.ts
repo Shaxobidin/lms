@@ -8,23 +8,30 @@ import { z } from 'zod';
 import {
   createQuestionBankSchema,
   createQuestionSchema,
+  exportQuestionsSchema,
+  importQuestionsSchema,
   createQuizSchema,
   gradeAnswerSchema,
   proctoringEventSchema,
   QUESTION_TYPES,
   saveAnswerSchema,
   setQuizQuestionsSchema,
+  updateQuizSchema,
   updateQuestionSchema,
   uuidSchema,
   type CreateQuestionInput,
+  type ExportQuestionsInput,
+  type ImportQuestionsInput,
   type CreateQuizInput,
   type ProctoringEventInput,
   type QuestionType,
   type SaveAnswerInput,
   type SetQuizQuestionsInput,
+  type UpdateQuizInput,
 } from '@lms/shared';
 import { QuizzesService } from './quizzes.service';
 import { QuestionsService } from './questions.service';
+import { QuestionImportService } from './question-import.service';
 import { zodBody, zodQuery, ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ClientIp, CurrentUser, RequirePermission } from '../../common/auth/decorators';
 import type { RequestUser } from '../../common/auth/auth.types';
@@ -42,6 +49,7 @@ export class QuizzesController {
   constructor(
     private readonly quizzes: QuizzesService,
     private readonly questions: QuestionsService,
+    private readonly questionImport: QuestionImportService,
   ) {}
 
   // --- Savollar banki -------------------------------------------------------
@@ -117,6 +125,33 @@ export class QuizzesController {
     return this.questions.updateQuestion(id, dto, actor);
   }
 
+  @Post('question-banks/:id/export')
+  @RequirePermission(['questionbank:manage:own_course', 'questionbank:read:own_department'], {
+    resource: 'questionbank',
+    path: 'params.id',
+  })
+  @ApiOperation({ summary: 'Savollar bankini QTI 3.0 paketiga eksport qilish' })
+  async exportBank(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(exportQuestionsSchema)) dto: ExportQuestionsInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.questionImport.exportBank(id, dto, actor);
+  }
+
+  @Post('questions/import')
+  @RequirePermission('questionbank:manage:own_course')
+  @ApiOperation({
+    summary:
+      "Savollarni fayldan import qilish (QTI 3.0/2.x, AIKEN, GIFT, CSV); `dryRun` — oldindan ko'rish",
+  })
+  async importQuestions(
+    @Body(zodBody(importQuestionsSchema)) dto: ImportQuestionsInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.questionImport.importFromFile(dto, actor);
+  }
+
   @Post('questions/:id/analyze')
   @RequirePermission('questionbank:manage:own_course')
   @ApiOperation({ summary: 'Savol statistikasini qayta hisoblash' })
@@ -136,6 +171,24 @@ export class QuizzesController {
     return this.quizzes.create(dto, actor);
   }
 
+  @Get('quizzes/:id')
+  @RequirePermission('quiz:manage:own_course', { resource: 'quiz', path: 'params.id' })
+  @ApiOperation({ summary: 'Test sozlamalari (o`qituvchi)' })
+  async quizSettings(@Param('id', new ZodValidationPipe(uuidSchema)) id: string) {
+    return this.quizzes.getSettings(id);
+  }
+
+  @Patch('quizzes/:id')
+  @RequirePermission('quiz:manage:own_course', { resource: 'quiz', path: 'params.id' })
+  @ApiOperation({ summary: 'Test sozlamalarini yangilash' })
+  async updateQuiz(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateQuizSchema)) dto: UpdateQuizInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.quizzes.update(id, dto, actor);
+  }
+
   @Post('quizzes/:id/questions')
   @RequirePermission('quiz:manage:own_course', { resource: 'quiz', path: 'params.id' })
   @ApiOperation({ summary: 'Testga savollar biriktirish va variant qoidalari' })
@@ -145,6 +198,13 @@ export class QuizzesController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.quizzes.setQuestions(id, dto, actor);
+  }
+
+  @Get('quizzes/:id/questions')
+  @RequirePermission('quiz:manage:own_course', { resource: 'quiz', path: 'params.id' })
+  @ApiOperation({ summary: 'Testga biriktirilgan savollar (konstruktor uchun)' })
+  async builderQuestions(@Param('id', new ZodValidationPipe(uuidSchema)) id: string) {
+    return this.quizzes.questionsForBuilder(id);
   }
 
   @Get('courses/:courseId/quizzes')

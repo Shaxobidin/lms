@@ -86,6 +86,8 @@ const ALLOWED_ATTR = [
   'start',
   'type',
   'data-lang',
+  /** Kontent ichidagi fayl (rasm, ilova) — mijoz vaqtinchalik havolaga almashtiradi. */
+  'data-file-id',
 ];
 
 @Injectable()

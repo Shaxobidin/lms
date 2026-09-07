@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { uuidSchema } from './common';
+import { localeSchema, uuidSchema } from './common';
 import { localizedRichTextSchema, localizedTextSchema } from '../types/localized';
 import { bloomLevelSchema } from './curriculum';
 import { CONTROL_TYPES } from '../domain/grading';
@@ -95,6 +95,11 @@ const clozePayload = z.object({
         accepted: z.array(z.string().max(200)).min(1).max(10),
         caseSensitive: z.boolean().default(false),
         points: z.coerce.number().min(0).max(100).default(1),
+        /**
+         * Berilsa bo'shliq ochiladigan ro'yxat (QTI `inlineChoice`) — talaba
+         * yozmaydi, tanlaydi. `accepted` shu ro'yxatdagi to'g'ri variant(lar).
+         */
+        options: z.array(z.string().max(200)).min(2).max(20).optional(),
       }),
     )
     .min(1)
@@ -116,6 +121,15 @@ const numericPayload = z.object({
   /** Ruxsat etilgan xatolik (absolyut qiymat). */
   tolerance: z.coerce.number().min(0).default(0),
   unit: z.string().max(32).optional(),
+  /** Berilsa javob slayder bilan tanlanadi (QTI `slider`). */
+  range: z
+    .object({
+      min: z.coerce.number(),
+      max: z.coerce.number(),
+      step: z.coerce.number().positive().default(1),
+    })
+    .refine((value) => value.max > value.min, { message: 'validation.range_invalid' })
+    .optional(),
 });
 
 const hotspotPayload = z.object({
@@ -126,12 +140,24 @@ const hotspotPayload = z.object({
     .array(
       z.object({
         id: z.string().max(64),
-        shape: z.enum(['RECT', 'CIRCLE']),
+        shape: z.enum(['RECT', 'CIRCLE', 'POLY']),
+        /** RECT/CIRCLE: yuqori-chap burchak / markaz. POLY: birinchi nuqta (chizish uchun). */
         x: z.coerce.number().min(0).max(100),
         y: z.coerce.number().min(0).max(100),
         width: z.coerce.number().min(0).max(100).optional(),
         height: z.coerce.number().min(0).max(100).optional(),
         radius: z.coerce.number().min(0).max(100).optional(),
+        /** POLY: ko'pburchak uchlari (foizda), kamida 3 ta. */
+        points: z
+          .array(
+            z.object({
+              x: z.coerce.number().min(0).max(100),
+              y: z.coerce.number().min(0).max(100),
+            }),
+          )
+          .min(3)
+          .max(50)
+          .optional(),
       }),
     )
     .min(1)
@@ -240,12 +266,29 @@ export const createQuestionSchema = z.object({
 
 export const updateQuestionSchema = createQuestionSchema.partial().omit({ bankId: true });
 
-/** QTI 3.0 / CSV import (F-07, §12). */
+/** Import formatlari (F-07, §12): QTI 3.0 / 2.x (XML yoki ZIP paket) va matnli formatlar. */
+export const QUESTION_IMPORT_FORMATS = ['QTI_3', 'AIKEN', 'GIFT', 'CSV'] as const;
+export type QuestionImportFormat = (typeof QUESTION_IMPORT_FORMATS)[number];
+
+/** QTI 3.0 / matnli import (F-07, §12). */
 export const importQuestionsSchema = z.object({
   bankId: uuidSchema,
-  format: z.enum(['QTI_3', 'AIKEN', 'GIFT', 'CSV']),
+  format: z.enum(QUESTION_IMPORT_FORMATS),
   fileObjectId: uuidSchema,
+  /** Fayldagi matn qaysi tilga yoziladi (import fayllari bir tilli). */
+  locale: localeSchema.default('uz-Latn'),
+  /** `true` — faqat tahlil va oldindan ko'rish, bazaga yozilmaydi. */
+  dryRun: z.boolean().default(false),
 });
+export type ImportQuestionsInput = z.infer<typeof importQuestionsSchema>;
+
+/** QTI 3.0 eksport (§10). */
+export const exportQuestionsSchema = z.object({
+  format: z.enum(['QTI_3']).default('QTI_3'),
+  /** Ko'p tilli matndan qaysi til yoziladi (yo'q bo'lsa mavjud birinchi til). */
+  locale: localeSchema.default('uz-Latn'),
+});
+export type ExportQuestionsInput = z.infer<typeof exportQuestionsSchema>;
 
 // --- Test (quiz) ------------------------------------------------------------
 
@@ -285,6 +328,7 @@ export const createQuizSchema = quizBaseSchema.refine(
 );
 
 export const updateQuizSchema = quizBaseSchema.partial().omit({ courseId: true });
+export type UpdateQuizInput = z.infer<typeof updateQuizSchema>;
 
 /** Testga savollar biriktirish. `poolTag` — randomizatsiya guruhi. */
 export const setQuizQuestionsSchema = z.object({

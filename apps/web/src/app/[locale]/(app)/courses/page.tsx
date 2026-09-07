@@ -9,9 +9,10 @@
 
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { BookOpen, Plus, Search } from 'lucide-react';
-import { api } from '@/lib/api-client';
+import { toast } from 'sonner';
+import { api, ApiClientError } from '@/lib/api-client';
 import { useAuthStore } from '@/lib/auth-store';
 import { localize } from '@/lib/utils';
 import { Link, type AppLocale } from '@/i18n/routing';
@@ -42,16 +43,40 @@ interface CourseListItem {
     user: { id: string; profile: { firstName: string; lastName: string } | null };
   }>;
   _count: { enrollments: number; modules: number };
+  /** Joriy foydalanuvchining yozilishi (bo'lsa) — server faqat o'ziniki qaytaradi. */
+  enrollments?: Array<{ status: string }>;
 }
 
 export default function CoursesPage() {
   const t = useTranslations();
   const locale = useLocale() as AppLocale;
   const can = useAuthStore((state) => state.can);
+  const hasRole = useAuthStore((state) => state.hasRole);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
   const canCreate = can('course:create:own') || can('course:create:own_department');
+  /**
+   * O'ZINI kursga yozish — talabaning amali (§3, R8).
+   *
+   * `can('enrollment:create:own')` bu yerda yaramaydi: o'qituvchining
+   * `enrollment:create:own_course` ruxsati kengroq scope bo'lgani uchun
+   * `own` ni ham qoplaydi va unga ham "Yozilish" tugmasi chiqib qolardi.
+   * O'qituvchining bu ruxsati esa BOSHQALARNI o'z kursiga yozish uchun.
+   */
+  const canEnroll = hasRole('STUDENT');
+
+  const enroll = useMutation({
+    mutationFn: async (courseId: string) => api.post('/enroll', { courseId }),
+    onSuccess: () => {
+      toast.success(t('courses.enrolled'));
+      void refetch();
+    },
+    onError: (error: unknown) => {
+      const key = error instanceof ApiClientError ? error.translationKey : 'errors.internal';
+      toast.error(t(key));
+    },
+  });
 
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
@@ -148,8 +173,13 @@ export default function CoursesPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((course) => (
-              <Link key={course.id} href={`/courses/${course.id}` as '/courses'}>
-                <Card className="h-full transition-colors hover:border-primary/40">
+              // Karta ichida tugma bo'lgani uchun havola butun kartani o'ramaydi:
+              // ichma-ich interaktiv elementlar klaviatura navigatsiyasini buzadi (NF-05)
+              <Card
+                key={course.id}
+                className="flex h-full flex-col transition-colors hover:border-primary/40"
+              >
+                <Link href={`/courses/${course.id}` as '/courses'} className="flex-1">
                   <CardContent className="space-y-2 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-mono text-xs text-muted-foreground">{course.code}</span>
@@ -186,8 +216,25 @@ export default function CoursesPage() {
                       </Badge>
                     </div>
                   </CardContent>
-                </Card>
-              </Link>
+                </Link>
+
+                {canEnroll && course.status === 'PUBLISHED' ? (
+                  <div className="px-4 pb-4">
+                    {(course.enrollments ?? []).length > 0 ? (
+                      <Badge variant="success">{t('courses.enrolled')}</Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        loading={enroll.isPending && enroll.variables === course.id}
+                        onClick={() => enroll.mutate(course.id)}
+                      >
+                        {t('courses.enroll')}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </Card>
             ))}
           </div>
 

@@ -22,20 +22,12 @@ import {
   type ResetPasswordInput,
 } from '@lms/shared';
 import type { AppConfig } from '../../config/configuration';
-import { AuthService, parseTtlSeconds } from './auth.service';
+import { AuthService } from './auth.service';
+import { REFRESH_COOKIE, clearAuthCookies, setAuthCookies } from '../../common/auth/auth-cookies';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { ClientIp, CurrentUser, Public, TraceId } from '../../common/auth/decorators';
 import type { RequestUser } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
-
-const REFRESH_COOKIE = 'lms_refresh';
-
-/**
- * Sessiya-belgisi: SIR EMAS, faqat "sessiya bo'lishi mumkin" degan bayroq.
- * Mijoz shu belgi bo'lmasa `/auth/refresh` ni umuman chaqirmaydi — anonim
- * foydalanuvchi uchun har sahifa yuklanishida keraksiz 401 so'rov ketmaydi.
- */
-const SESSION_HINT_COOKIE = 'lms_session';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -62,7 +54,7 @@ export class AuthController {
       traceId,
     });
 
-    this.setRefreshCookie(response, result.refreshToken, dto.rememberMe);
+    setAuthCookies(response, this.config, result.refreshToken, dto.rememberMe);
     return { tokens: result.tokens, user: result.user };
   }
 
@@ -90,7 +82,7 @@ export class AuthController {
       traceId,
     });
 
-    this.setRefreshCookie(response, result.refreshToken, true);
+    setAuthCookies(response, this.config, result.refreshToken, true);
     return { tokens: result.tokens, user: result.user };
   }
 
@@ -102,7 +94,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     await this.auth.logout(user.sessionId, user.id);
-    this.clearAuthCookies(response);
+    clearAuthCookies(response);
   }
 
   @Post('logout-all')
@@ -113,7 +105,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const count = await this.auth.logoutAll(user.id);
-    this.clearAuthCookies(response);
+    clearAuthCookies(response);
     return { revokedSessions: count };
   }
 
@@ -198,40 +190,5 @@ export class AuthController {
     @Body(zodBody(enableTwoFactorSchema)) dto: { totpCode: string },
   ): Promise<void> {
     await this.auth.disableTwoFactor(user.id, dto.totpCode);
-  }
-
-  /**
-   * Refresh cookie: `httpOnly` (JS o'qiy olmaydi), `SameSite=Lax` (CSRF),
-   * `path` cheklangan — faqat auth endpointlariga yuboriladi.
-   */
-  private setRefreshCookie(response: Response, token: string, rememberMe: boolean): void {
-    const maxAgeMs =
-      (rememberMe ? parseTtlSeconds(this.config.get('JWT_REFRESH_TTL', { infer: true })) : 86_400) *
-      1000;
-
-    response.cookie(REFRESH_COOKIE, token, {
-      httpOnly: true,
-      secure: this.config.get('COOKIE_SECURE', { infer: true }),
-      sameSite: 'lax',
-      domain: this.config.get('COOKIE_DOMAIN', { infer: true }),
-      path: '/api/v1/auth',
-      maxAge: maxAgeMs,
-    });
-
-    // Belgi mijozga ko'rinadi (httpOnly emas) va butun sayt bo'yicha yuboriladi
-    response.cookie(SESSION_HINT_COOKIE, '1', {
-      httpOnly: false,
-      secure: this.config.get('COOKIE_SECURE', { infer: true }),
-      sameSite: 'lax',
-      domain: this.config.get('COOKIE_DOMAIN', { infer: true }),
-      path: '/',
-      maxAge: maxAgeMs,
-    });
-  }
-
-  /** Chiqishda ikkala cookie ham tozalanadi. */
-  private clearAuthCookies(response: Response): void {
-    response.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
-    response.clearCookie(SESSION_HINT_COOKIE, { path: '/' });
   }
 }

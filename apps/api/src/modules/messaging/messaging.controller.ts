@@ -136,6 +136,17 @@ export class MessagingController {
     return this.messaging.sendMessage(dto, actor);
   }
 
+  @Get('messages/contacts')
+  @RequirePermission('message:create:own')
+  @ApiOperation({ summary: 'Kimga xabar yozish mumkin (umumiy kurs doirasida)' })
+  async messageContacts(
+    @Query(zodQuery(z.object({ search: z.string().trim().max(100).optional() })))
+    query: { search?: string },
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.messaging.messageContacts(actor, query.search);
+  }
+
   @Get('messages')
   @ApiOperation({ summary: 'Xabarlar (kiruvchi yoki chiquvchi)' })
   async listMessages(

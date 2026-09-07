@@ -23,6 +23,14 @@ export const RESOURCES = [
   'subject',
   'syllabus',
   'course',
+  /**
+   * `module` va `topic` alohida ruxsat kalitlariga ega EMAS — ular
+   * `lesson:manage:*` bilan boshqariladi. Bu yerda turishining sababi:
+   * ABAC scope resolver ularni identifikator bo'yicha kursga bog'lay olishi
+   * kerak (`@RequirePermission(..., { resource: 'module' })`).
+   */
+  'module',
+  'topic',
   'lesson',
   'resource',
   'file',
@@ -333,6 +341,8 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'curriculum:approve:own_faculty',
     'syllabus:read:own_faculty',
     'syllabus:approve:own_faculty',
+    // Sillabusga interfeys orqali fanlar ro'yxatidan boriladi — tasdiqlovchi ro'yxatni ko'rishi shart
+    'subject:read:own_faculty',
     'course:read:own_faculty',
     'course:publish:own_faculty',
     'enrollment:read:own_faculty',

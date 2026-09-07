@@ -2,21 +2,25 @@
  * Maqsad: F-06 endpointlari — topshiriq, rubrika, topshirish, baholash, peer-review.
  */
 
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   createAssignmentSchema,
+  updateAssignmentSchema,
   createRubricSchema,
   createSubmissionSchema,
   gradeSubmissionSchema,
   listSubmissionsSchema,
   peerReviewSchema,
+  updateRubricSchema,
   uuidSchema,
   type CreateAssignmentInput,
+  type UpdateAssignmentInput,
   type CreateRubricInput,
   type CreateSubmissionInput,
   type GradeSubmissionInput,
   type PeerReviewInput,
+  type UpdateRubricInput,
 } from '@lms/shared';
 import { AssignmentsService } from './assignments.service';
 import { zodBody, zodQuery, ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -50,6 +54,27 @@ export class AssignmentsController {
     return this.assignments.listRubrics(courseId);
   }
 
+  @Patch('rubrics/:id')
+  @RequirePermission('rubric:manage:own_course', { resource: 'rubric', path: 'params.id' })
+  @ApiOperation({ summary: 'Rubrikani yangilash' })
+  async updateRubric(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateRubricSchema)) dto: UpdateRubricInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.assignments.updateRubric(id, dto, actor);
+  }
+
+  @Delete('rubrics/:id')
+  @RequirePermission('rubric:manage:own_course', { resource: 'rubric', path: 'params.id' })
+  @ApiOperation({ summary: "Rubrikani o'chirish" })
+  async deleteRubric(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.assignments.deleteRubric(id, actor);
+  }
+
   // --- Topshiriq ------------------------------------------------------------
 
   @Post('assignments')
@@ -60,6 +85,17 @@ export class AssignmentsController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.assignments.create(dto, actor);
+  }
+
+  @Patch('assignments/:id')
+  @RequirePermission('assignment:manage:own_course', { resource: 'assignment', path: 'params.id' })
+  @ApiOperation({ summary: 'Topshiriq sozlamalarini yangilash' })
+  async update(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateAssignmentSchema)) dto: UpdateAssignmentInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.assignments.update(id, dto, actor);
   }
 
   @Get('courses/:courseId/assignments')
@@ -73,6 +109,19 @@ export class AssignmentsController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.assignments.listForCourse(courseId, actor);
+  }
+
+  @Get('assignments/:id')
+  @RequirePermission(['assignment:read:own', 'assignment:manage:own_course'], {
+    resource: 'assignment',
+    path: 'params.id',
+  })
+  @ApiOperation({ summary: 'Topshiriq kartasi (rubrika mezonlari bilan)' })
+  async detail(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.assignments.getAssignment(id, actor);
   }
 
   // --- Topshirish va baholash ----------------------------------------------

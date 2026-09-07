@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import type { PresignUploadInput } from '@lms/shared';
 import type { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SiteSettingsService } from '../../common/settings/site-settings.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { QueueService } from '../../common/queue/queue.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -28,6 +29,7 @@ const PURPOSE_SIZE_LIMITS: Record<string, number> = {
   EXCUSE: 20,
   COURSE_CONTENT: 512,
   SCORM: 512,
+  QUESTION_IMPORT: 20,
 };
 
 @Injectable()
@@ -40,6 +42,7 @@ export class FilesService {
     private readonly queue: QueueService,
     private readonly audit: AuditService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly siteSettings: SiteSettingsService,
   ) {}
 
   async presign(input: PresignUploadInput, actor: RequestUser) {
@@ -48,11 +51,20 @@ export class FilesService {
       this.config.get('MAX_UPLOAD_SIZE_MB', { infer: true }),
     );
 
-    if (input.sizeBytes > limitMb * 1024 * 1024) {
+    // Sayt boshqaruvi → Himoya: umumiy yuklash chegarasi; H5P paketlari uchun alohida (F-17)
+    const siteMaxMb = await this.siteSettings.get<number>('security.maxUploadMb');
+    const isH5p = /\.h5p$/i.test(input.fileName);
+    const h5pMaxMb = isH5p ? await this.siteSettings.get<number>('h5p.maxSizeMb') : Infinity;
+    const effectiveLimitMb = Math.min(
+      limitMb,
+      Number.isFinite(siteMaxMb) ? siteMaxMb : limitMb,
+      Number.isFinite(h5pMaxMb) ? h5pMaxMb : limitMb,
+    );
+    if (input.sizeBytes > effectiveLimitMb * 1024 * 1024) {
       throw new AppException({
         code: 'PAYLOAD_TOO_LARGE',
         messageKey: 'errors.file_too_large',
-        context: { limitMb },
+        context: { limitMb: effectiveLimitMb },
       });
     }
 

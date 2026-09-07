@@ -149,6 +149,90 @@ export class ScopeResolverService {
         : null;
     });
 
+    this.register('module', async (id) => {
+      const row = await db.module.findUnique({
+        where: { id },
+        select: {
+          course: {
+            select: {
+              id: true,
+              departmentId: true,
+              department: { select: { facultyId: true } },
+            },
+          },
+        },
+      });
+      return row
+        ? {
+            courseId: row.course.id,
+            departmentId: row.course.departmentId,
+            facultyId: row.course.department.facultyId,
+          }
+        : null;
+    });
+
+    this.register('topic', async (id) => {
+      const row = await db.topic.findUnique({
+        where: { id },
+        select: {
+          module: {
+            select: {
+              course: {
+                select: {
+                  id: true,
+                  departmentId: true,
+                  department: { select: { facultyId: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+      const course = row?.module.course;
+      return course
+        ? {
+            courseId: course.id,
+            departmentId: course.departmentId,
+            facultyId: course.department.facultyId,
+          }
+        : null;
+    });
+
+    this.register('resource', async (id) => {
+      const row = await db.resource.findUnique({
+        where: { id },
+        select: {
+          lesson: {
+            select: {
+              topic: {
+                select: {
+                  module: {
+                    select: {
+                      course: {
+                        select: {
+                          id: true,
+                          departmentId: true,
+                          department: { select: { facultyId: true } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const course = row?.lesson.topic.module.course;
+      return course
+        ? {
+            courseId: course.id,
+            departmentId: course.departmentId,
+            facultyId: course.department.facultyId,
+          }
+        : null;
+    });
+
     this.register('lesson', async (id) => {
       const row = await db.lesson.findUnique({
         where: { id },

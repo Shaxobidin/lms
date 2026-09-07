@@ -34,7 +34,10 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run check:todo && npm run check:i18n && npm run test",
     "check:documents": "node scripts/check-documents.mjs",
     "check:queues": "node scripts/check-queues.mjs",
-    "load-test": "node scripts/load-test.mjs"
+    "load-test": "node scripts/load-test.mjs",
+    "check:builder": "node scripts/check-course-builder.mjs",
+    "check:grading": "node scripts/check-grading.mjs",
+    "check:gaps": "node scripts/check-gaps.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

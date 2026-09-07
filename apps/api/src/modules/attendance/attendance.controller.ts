@@ -123,6 +123,13 @@ export class AttendanceController {
     return this.attendance.createSession(dto, actor);
   }
 
+  @Get('class-sessions/:id/roster')
+  @RequirePermission(['attendance:manage:own_course', 'attendance:update:own_group'])
+  @ApiOperation({ summary: "Sessiya ro'yxati va mavjud davomat belgilari" })
+  async sessionRoster(@Param('id', new ZodValidationPipe(uuidSchema)) id: string) {
+    return this.attendance.sessionRoster(id);
+  }
+
   // --- Davomat --------------------------------------------------------------
 
   @Post('attendance/qr')

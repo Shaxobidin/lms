@@ -433,6 +433,18 @@ export class CurriculumService {
       });
     }
 
+    /**
+     * Vazifalar ajratilishi (§3): metodist (R5) sillabusni YOZADI va yuboradi,
+     * tasdiqlash yoki qaytarish esa kafedra mudiri (R4) / dekanat (R3) vakolati.
+     * Marshrut ruxsati `syllabus:update:own_faculty` ni ham qabul qiladi —
+     * bu SUBMIT uchun kerak; ammo o'sha ruxsat bilan APPROVE ga yo'l qo'yilsa,
+     * metodist o'z sillabusini o'zi tasdiqlab qo'yardi.
+     */
+    if (input.action === 'APPROVE' || input.action === 'REJECT') {
+      const canApprove = actor.permissions.some((key) => key.startsWith('syllabus:approve:'));
+      if (!canApprove) throw AppException.businessRule('errors.syllabus_approval_forbidden');
+    }
+
     if (input.action === 'REJECT' && !input.comment) {
       throw AppException.validation([{ field: 'comment', code: 'validation.required_on_reject' }]);
     }

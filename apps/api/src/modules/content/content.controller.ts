@@ -8,13 +8,18 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
   completeUploadSchema,
+  exportCartridgeSchema,
+  importCartridgeSchema,
   lessonProgressSchema,
   presignUploadSchema,
   uuidSchema,
+  type ExportCartridgeInput,
+  type ImportCartridgeInput,
   type PresignUploadInput,
 } from '@lms/shared';
 import { FilesService } from './files.service';
 import { ScormService } from './scorm.service';
+import { CartridgeImportService } from './cc-import.service';
 import { XapiService } from './xapi.service';
 import { ProgressService } from './progress.service';
 import { zodBody, zodQuery, ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -48,6 +53,7 @@ export class ContentController {
   constructor(
     private readonly files: FilesService,
     private readonly scorm: ScormService,
+    private readonly cartridge: CartridgeImportService,
     private readonly xapi: XapiService,
     private readonly progress: ProgressService,
   ) {}
@@ -81,6 +87,30 @@ export class ContentController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.files.getDownloadUrl(id, actor);
+  }
+
+  // --- IMS Common Cartridge ---------------------------------------------------
+
+  @Post('cc/import')
+  @RequirePermission('resource:manage:own_course', { resource: 'course', path: 'body.courseId' })
+  @ApiOperation({
+    summary: 'IMS Common Cartridge paketini kursga import qilish; `dryRun` — faqat reja',
+  })
+  async importCartridge(
+    @Body(zodBody(importCartridgeSchema)) dto: ImportCartridgeInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.cartridge.importCartridge(dto, actor);
+  }
+
+  @Post('cc/export')
+  @RequirePermission('resource:manage:own_course', { resource: 'course', path: 'body.courseId' })
+  @ApiOperation({ summary: 'Kursni IMS Common Cartridge paketiga eksport qilish' })
+  async exportCartridge(
+    @Body(zodBody(exportCartridgeSchema)) dto: ExportCartridgeInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.cartridge.exportCartridge(dto.courseId, dto.locale, actor);
   }
 
   // --- SCORM ----------------------------------------------------------------

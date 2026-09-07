@@ -7,9 +7,10 @@
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Inbox, Megaphone, Send } from 'lucide-react';
+import { Inbox, Megaphone, PenLine, Reply, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, ApiClientError } from '@/lib/api-client';
+import { useAuthStore } from '@/lib/auth-store';
 import { cn, formatDateTime, localize } from '@/lib/utils';
 import type { AppLocale } from '@/i18n/routing';
 import {
@@ -20,8 +21,21 @@ import {
   CardHeader,
   CardTitle,
   EmptyState,
+  Input,
+  Label,
   Skeleton,
+  Textarea,
 } from '@/components/ui/primitives';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Select } from '@/components/ui/form-controls';
 
 interface MessageRow {
   id: string;
@@ -31,6 +45,13 @@ interface MessageRow {
   createdAt: string;
   sender: { id: string; profile: { firstName: string; lastName: string } | null };
   recipient: { id: string; profile: { firstName: string; lastName: string } | null };
+}
+
+interface Contact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  roles: string[];
 }
 
 interface AnnouncementRow {
@@ -47,7 +68,12 @@ export default function MessagesPage() {
   const t = useTranslations();
   const locale = useLocale() as AppLocale;
   const queryClient = useQueryClient();
+  const can = useAuthStore((state) => state.can);
   const [box, setBox] = useState<'inbox' | 'sent'>('inbox');
+  /** `null` — oyna yopiq; obyekt — javob rejimi (qabul qiluvchi oldindan tanlangan). */
+  const [composing, setComposing] = useState<{ to?: Contact; replyToId?: string } | null>(null);
+
+  const canSend = can('message:create:own');
 
   const messages = useQuery({
     queryKey: ['messages', box],
@@ -72,8 +98,15 @@ export default function MessagesPage() {
 
   return (
     <div className="space-y-5">
-      <header>
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{t('nav.messages')}</h1>
+
+        {canSend ? (
+          <Button onClick={() => setComposing({})}>
+            <PenLine className="size-4" />
+            {t('messaging.compose')}
+          </Button>
+        ) : null}
       </header>
 
       <Card>
@@ -184,16 +217,39 @@ export default function MessagesPage() {
                       </p>
                     </div>
 
-                    {!message.readAt && box === 'inbox' ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => markRead.mutate(message.id)}
-                        loading={markRead.isPending}
-                      >
-                        {t('messaging.markAsRead')}
-                      </Button>
-                    ) : null}
+                    <div className="flex items-center gap-1">
+                      {!message.readAt && box === 'inbox' ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => markRead.mutate(message.id)}
+                          loading={markRead.isPending}
+                        >
+                          {t('messaging.markAsRead')}
+                        </Button>
+                      ) : null}
+
+                      {canSend && box === 'inbox' ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setComposing({
+                              to: {
+                                id: message.sender.id,
+                                firstName: message.sender.profile?.firstName ?? '',
+                                lastName: message.sender.profile?.lastName ?? '',
+                                roles: [],
+                              },
+                              replyToId: message.id,
+                            })
+                          }
+                        >
+                          <Reply className="size-3.5" />
+                          {t('messaging.reply')}
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div
@@ -206,6 +262,144 @@ export default function MessagesPage() {
           )}
         </CardContent>
       </Card>
+
+      {composing ? (
+        <ComposeDialog
+          initial={composing}
+          onClose={() => setComposing(null)}
+          onSent={() => {
+            void queryClient.invalidateQueries({ queryKey: ['messages'] });
+            setBox('sent');
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Xabar yozish oynasi.
+ *
+ * Qabul qiluvchilar ro'yxati SERVERDA cheklangan: faqat umumiy kursi bor
+ * kishilar qaytariladi. Global foydalanuvchilar ro'yxati ochilmaydi (§11).
+ * Javob rejimida qabul qiluvchi tayyor keladi va o'zgartirilmaydi.
+ */
+function ComposeDialog({
+  initial,
+  onClose,
+  onSent,
+}: {
+  initial: { to?: Contact; replyToId?: string };
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const t = useTranslations();
+  const [recipientId, setRecipientId] = useState(initial.to?.id ?? '');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+
+  const isReply = Boolean(initial.replyToId);
+
+  const contacts = useQuery({
+    queryKey: ['message-contacts'],
+    queryFn: async () => (await api.get<Contact[]>('/messages/contacts')).data,
+    enabled: !isReply,
+  });
+
+  const send = useMutation({
+    mutationFn: async () =>
+      api.post('/messages', {
+        recipientId,
+        ...(subject.trim() ? { subject } : {}),
+        // Matn serverda sanitizatsiya qilinadi; bu yerda faqat teglar ekranlanadi
+        body: `<p>${body.trim().replace(/</g, '&lt;')}</p>`,
+        ...(initial.replyToId ? { replyToId: initial.replyToId } : {}),
+      }),
+    onSuccess: () => {
+      toast.success(t('messaging.messageSent'));
+      onSent();
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiClientError ? t(error.translationKey) : t('errors.internal'));
+    },
+  });
+
+  const canSubmit = recipientId !== '' && body.trim().length > 0;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent closeLabel={t('common.close')}>
+        <DialogHeader>
+          <DialogTitle>{isReply ? t('messaging.reply') : t('messaging.compose')}</DialogTitle>
+          <DialogDescription>{t('messaging.composeHint')}</DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="message-recipient" required>
+              {t('messaging.recipient')}
+            </Label>
+
+            {isReply && initial.to ? (
+              <Input
+                id="message-recipient"
+                readOnly
+                value={[initial.to.lastName, initial.to.firstName].filter(Boolean).join(' ')}
+              />
+            ) : (
+              <>
+                <Select
+                  id="message-recipient"
+                  value={recipientId}
+                  disabled={contacts.isLoading}
+                  onChange={(event) => setRecipientId(event.target.value)}
+                >
+                  <option value="">{t('common.none')}</option>
+                  {contacts.data?.map((contact) => (
+                    <option key={contact.id} value={contact.id}>
+                      {[contact.lastName, contact.firstName].filter(Boolean).join(' ')}
+                    </option>
+                  ))}
+                </Select>
+                {!contacts.isLoading && (contacts.data ?? []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{t('messaging.noContacts')}</p>
+                ) : null}
+              </>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="message-subject">{t('messaging.subject')}</Label>
+            <Input
+              id="message-subject"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="message-body" required>
+              {t('messaging.messageBody')}
+            </Label>
+            <Textarea
+              id="message-body"
+              rows={5}
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+            />
+          </div>
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button loading={send.isPending} disabled={!canSubmit} onClick={() => send.mutate()}>
+            {t('messaging.send')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

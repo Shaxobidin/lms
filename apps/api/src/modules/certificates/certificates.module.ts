@@ -44,6 +44,7 @@ export class CertificatesController {
     'certificate:read:own',
     'certificate:read:own_faculty',
     'certificate:read:all',
+    'certificate:create:own_course',
   ])
   @ApiOperation({ summary: 'Sertifikatlar reestri' })
   async registry(
@@ -51,11 +52,27 @@ export class CertificatesController {
     query: { courseId?: string; userId?: string; status?: string },
     @CurrentUser() actor: RequestUser,
   ) {
-    // Talaba faqat o'z sertifikatlarini ko'radi
     const canReadAll = actor.permissions.some(
       (key) => key.startsWith('certificate:read:') && !key.endsWith(':own'),
     );
-    return this.certificates.registry(canReadAll ? query : { ...query, userId: actor.id });
+    if (canReadAll) return this.certificates.registry(query);
+
+    /**
+     * O'qituvchi bergan sertifikatlarini KO'RISHI kerak — aks holda berish
+     * oqimi ko'r bo'lib qoladi. Doira: faqat o'zi o'qitadigan kurslar.
+     * So'ralgan `courseId` shu doiradan tashqarida bo'lsa — bo'sh natija.
+     */
+    const canIssue = actor.permissions.includes('certificate:create:own_course');
+    if (canIssue && actor.scope.courseIds.length > 0) {
+      if (query.courseId && !actor.scope.courseIds.includes(query.courseId)) return [];
+      return this.certificates.registry({
+        ...query,
+        courseIds: query.courseId ? undefined : actor.scope.courseIds,
+      });
+    }
+
+    // Talaba faqat o'z sertifikatlarini ko'radi
+    return this.certificates.registry({ ...query, userId: actor.id });
   }
 
   @Post(':id/revoke')

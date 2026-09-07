@@ -13,8 +13,12 @@ import {
   createGroupSchema,
   createSemesterSchema,
   createSpecialitySchema,
+  updateAcademicYearSchema,
   updateDepartmentSchema,
   updateFacultySchema,
+  updateGroupSchema,
+  updateSemesterSchema,
+  updateSpecialitySchema,
   uuidSchema,
   type CreateAcademicYearInput,
   type CreateDepartmentInput,
@@ -22,6 +26,8 @@ import {
   type CreateGroupInput,
   type CreateSemesterInput,
   type CreateSpecialityInput,
+  type UpdateAcademicYearInput,
+  type UpdateSemesterInput,
 } from '@lms/shared';
 import { OrgService } from './org.service';
 import { zodBody, zodQuery, ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -80,6 +86,28 @@ export class OrgController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.org.createSemester(dto, actor);
+  }
+
+  @Patch('academic-years/:id')
+  @RequirePermission('academicyear:manage:all')
+  @ApiOperation({ summary: "O'quv yilini yangilash (joriy deb belgilash ham)" })
+  async updateAcademicYear(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateAcademicYearSchema)) dto: UpdateAcademicYearInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.org.updateAcademicYear(id, dto, actor);
+  }
+
+  @Patch('semesters/:id')
+  @RequirePermission('academicyear:manage:all')
+  @ApiOperation({ summary: 'Semestrni yangilash (joriy deb belgilash ham)' })
+  async updateSemester(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateSemesterSchema)) dto: UpdateSemesterInput,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.org.updateSemester(id, dto, actor);
   }
 
   // --- Fakultet -------------------------------------------------------------
@@ -173,6 +201,18 @@ export class OrgController {
 
   // --- Guruh ----------------------------------------------------------------
 
+  @Patch('specialities/:id')
+  @RequirePermission('speciality:manage:all')
+  @ApiOperation({ summary: "Yo'nalishni yangilash" })
+  async updateSpeciality(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateSpecialitySchema))
+    dto: Partial<Omit<CreateSpecialityInput, 'departmentId'>>,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.org.updateSpeciality(id, dto, actor);
+  }
+
   @Get('groups')
   @ApiOperation({ summary: "Guruhlar ro'yxati" })
   async listGroups(
@@ -194,6 +234,17 @@ export class OrgController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.org.createGroup(dto, actor);
+  }
+
+  @Patch('groups/:id')
+  @RequirePermission('group:manage:all')
+  @ApiOperation({ summary: 'Guruhni yangilash (kurator, shakl, til)' })
+  async updateGroup(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(zodBody(updateGroupSchema)) dto: Partial<Omit<CreateGroupInput, 'specialityId'>>,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.org.updateGroup(id, dto, actor);
   }
 
   @Get('groups/:id/members')

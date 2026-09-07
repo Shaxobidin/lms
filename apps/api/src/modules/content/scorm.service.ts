@@ -274,7 +274,7 @@ function numberOrNull(value: string | undefined): number | null {
 }
 
 /** Kengaytma bo'yicha MIME — SCORM paketi ichidagi fayllar uchun. */
-function guessMimeType(path: string): string {
+export function guessMimeType(path: string): string {
   const extension = path.split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
     html: 'text/html',

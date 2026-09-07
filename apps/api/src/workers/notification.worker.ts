@@ -15,6 +15,7 @@ import { BaseWorker } from './worker.base';
 import { MailerService } from './mailer.service';
 import { NotificationTemplates } from './notification.templates';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { SiteSettingsService } from '../common/settings/site-settings.service';
 import { REDIS_CLIENT } from '../common/cache/cache.service';
 import { EventsService, EVENT_TYPES } from '../common/events/events.service';
 import { QUEUES, type JobPayloads } from '../common/queue/queue.service';
@@ -31,6 +32,7 @@ export class NotificationWorker extends BaseWorker {
     @Inject(REDIS_CLIENT) redis: Redis,
     config: ConfigService<AppConfig, true>,
     private readonly prisma: PrismaService,
+    private readonly siteSettings: SiteSettingsService,
     private readonly mailer: MailerService,
     private readonly templates: NotificationTemplates,
     private readonly events: EventsService,
@@ -82,8 +84,26 @@ export class NotificationWorker extends BaseWorker {
       ? notification.channels.filter((c) => allowed.includes(c))
       : notification.channels;
 
-    // Sokin soatlar: bu oraliqda faqat ilova ichida ko'rsatiladi
-    if (this.isQuietHour(notification.user.notificationPrefs?.quietHours)) {
+    // Sayt boshqaruvi → Bildirishnoma sozlamalari: butun sayt uchun o'chirilgan kanallar (F-17)
+    const siteChannel: Record<string, string> = {
+      IN_APP: 'notifications.inApp',
+      EMAIL: 'notifications.email',
+      SMS: 'notifications.sms',
+      TELEGRAM: 'notifications.telegram',
+      PUSH: 'notifications.push',
+    };
+    const siteEnabled = await Promise.all(
+      channels.map((channel) => this.siteSettings.getBoolean(siteChannel[channel] ?? '')),
+    );
+    channels = channels.filter((_, index) => siteEnabled[index] !== false);
+
+    // Sokin soatlar: foydalanuvchiniki, bo'lmasa saytniki — bu oraliqda faqat ilova ichida
+    const userQuiet = notification.user.notificationPrefs?.quietHours;
+    const siteQuiet = {
+      from: await this.siteSettings.get<string>('notifications.quietHoursStart'),
+      to: await this.siteSettings.get<string>('notifications.quietHoursEnd'),
+    };
+    if (this.isQuietHour(userQuiet ?? siteQuiet)) {
       channels = channels.filter((channel) => channel === 'IN_APP');
     }
 

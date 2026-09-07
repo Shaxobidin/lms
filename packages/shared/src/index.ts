@@ -34,6 +34,13 @@ export * from './schemas/quiz';
 export * from './schemas/attendance';
 export * from './schemas/communication';
 export * from './schemas/document';
+export * from './schemas/lti';
+
+// Sayt boshqaruvi (Moodle uslubidagi sozlamalar daraxti)
+export * from './admin/site-settings';
+
+// Savollar importi (AIKEN / GIFT / CSV — sof matn tahlilchilari)
+export * from './import/question-formats';
 
 // SCORM / xAPI
 export * from './scorm/types';

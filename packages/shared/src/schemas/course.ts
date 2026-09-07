@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { codeSchema, mimeTypeSchema, uuidSchema } from './common';
+import { codeSchema, httpUrlSchema, mimeTypeSchema, uuidSchema, localeSchema } from './common';
 import { localizedRichTextSchema, localizedTextSchema } from '../types/localized';
 import { bloomLevelSchema, gradingPolicySchema } from './curriculum';
 
@@ -20,7 +20,18 @@ export const RESOURCE_KINDS = [
   'XAPI',
   'TEXT',
   'FILE',
+  'FOLDER',
+  'EMBED',
 ] as const;
+
+/**
+ * Fayl talab qiladigan turlar. Qolganlari `meta` yoki `externalUrl` bilan
+ * ishlaydi — shuning uchun validatsiya turga qarab farqlanadi.
+ */
+export const FILE_RESOURCE_KINDS = ['VIDEO', 'PDF', 'AUDIO', 'FILE', 'SCORM'] as const;
+
+/** Tashqi manzil talab qiladigan turlar. */
+export const URL_RESOURCE_KINDS = ['LINK', 'EMBED', 'H5P', 'XAPI'] as const;
 
 export const courseTypeSchema = z.enum(COURSE_TYPES);
 export const courseStatusSchema = z.enum(COURSE_STATUSES);
@@ -98,6 +109,49 @@ export const createLessonSchema = z.object({
 
 export const updateLessonSchema = createLessonSchema.partial().omit({ topicId: true });
 
+/** Modulni tahrirlash — nomi, tavsifi va nashr holati (F-04). */
+export const updateModuleSchema = createModuleSchema.partial().omit({ courseId: true });
+
+/** Mavzuni tahrirlash. */
+export const updateTopicSchema = createTopicSchema.partial().omit({ moduleId: true });
+
+/**
+ * Resurs qo'shimcha ma'lumotlari — turga qarab har xil.
+ *
+ * `TEXT` uchun matnning o'zi, `FOLDER` uchun fayllar ro'yxati, `EMBED` uchun
+ * iframe balandligi. Alohida jadval yaratilmagani ataylab: bu maydonlar faqat
+ * ko'rsatish uchun kerak, ular bo'yicha qidiruv ham, filtr ham yo'q.
+ */
+export const resourceMetaSchema = z.object({
+  /** `TEXT` (Moodle: Label) — darsda joyida ko'rinadigan matn bloki. */
+  text: localizedRichTextSchema.optional(),
+  /** `FOLDER` (Moodle: Folder) — bitta yig'iladigan elementdagi fayllar. */
+  files: z
+    .array(
+      z.object({
+        fileObjectId: uuidSchema,
+        name: z.string().trim().min(1).max(255),
+        sizeBytes: z.coerce.number().int().min(0),
+      }),
+    )
+    .max(100)
+    .optional(),
+  /** `EMBED` — iframe balandligi (piksel). */
+  embedHeight: z.coerce.number().int().min(200).max(2000).optional(),
+});
+
+/**
+ * Resursni tahrirlash — nomi, majburiyligi, tarkibi (`meta`) va havola manzili.
+ * Fayl almashtirilmaydi: yangi fayl uchun yangi resurs yaratiladi (Moodle
+ * uslubi — fayl resursi o'z faylini "egallaydi").
+ */
+export const updateResourceSchema = z.object({
+  title: localizedTextSchema.optional(),
+  isRequired: z.boolean().optional(),
+  meta: resourceMetaSchema.optional(),
+  externalUrl: httpUrlSchema.nullable().optional(),
+});
+
 /**
  * Drag-and-drop tartiblash (F-04). Bitta so'rovda butun ro'yxat tartibi yuboriladi —
  * bu N ta PATCH so'rovi o'rniga bitta tranzaksiya beradi va N+1 muammosini oldini oladi.
@@ -115,14 +169,51 @@ export const createResourceSchema = z
     kind: resourceKindSchema,
     title: localizedTextSchema,
     fileObjectId: uuidSchema.nullable().optional(),
-    externalUrl: z.string().url().max(2048).nullable().optional(),
+    externalUrl: httpUrlSchema.nullable().optional(),
+    meta: resourceMetaSchema.default({}),
     position: z.coerce.number().int().min(0).default(0),
     /** Talaba uni ko'rishi majburiymi (progress hisobiga kiradi). */
     isRequired: z.boolean().default(true),
   })
-  .refine((value) => Boolean(value.fileObjectId) || Boolean(value.externalUrl), {
-    message: 'validation.resource_needs_file_or_url',
-    path: ['fileObjectId'],
+  .superRefine((value, ctx) => {
+    // Har bir tur o'z manbasini talab qiladi — bo'sh resurs yaratilmasin
+    if (FILE_RESOURCE_KINDS.includes(value.kind as (typeof FILE_RESOURCE_KINDS)[number])) {
+      if (!value.fileObjectId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'validation.resource_needs_file',
+          path: ['fileObjectId'],
+        });
+      }
+      return;
+    }
+
+    if (URL_RESOURCE_KINDS.includes(value.kind as (typeof URL_RESOURCE_KINDS)[number])) {
+      if (!value.externalUrl) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'validation.resource_needs_url',
+          path: ['externalUrl'],
+        });
+      }
+      return;
+    }
+
+    if (value.kind === 'TEXT' && !value.meta.text) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'validation.resource_needs_text',
+        path: ['meta', 'text'],
+      });
+    }
+
+    if (value.kind === 'FOLDER' && (value.meta.files ?? []).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'validation.resource_needs_files',
+        path: ['meta', 'files'],
+      });
+    }
   });
 
 /** Kursni nusxalash / shablonlash (F-04). */
@@ -165,9 +256,35 @@ export const presignUploadSchema = z.object({
     .min(1)
     .max(5 * 1024 * 1024 * 1024),
   /** Fayl qaysi maqsadda — kvota va bucket prefiksini aniqlaydi. */
-  purpose: z.enum(['COURSE_CONTENT', 'SUBMISSION', 'AVATAR', 'SCORM', 'DOCUMENT', 'EXCUSE']),
+  purpose: z.enum([
+    'COURSE_CONTENT',
+    'SUBMISSION',
+    'AVATAR',
+    'SCORM',
+    'DOCUMENT',
+    'EXCUSE',
+    'QUESTION_IMPORT',
+  ]),
   courseId: uuidSchema.optional(),
 });
+
+/** IMS Common Cartridge paketini kursga import qilish (F-05, §10). */
+export const importCartridgeSchema = z.object({
+  courseId: uuidSchema,
+  fileObjectId: uuidSchema,
+  /** Paketdagi matnlar qaysi tilga yoziladi. */
+  locale: localeSchema.default('uz-Latn'),
+  /** `true` — faqat reja (nima yaratiladi, nima o'tkazib yuboriladi). */
+  dryRun: z.boolean().default(false),
+});
+export type ImportCartridgeInput = z.infer<typeof importCartridgeSchema>;
+
+/** IMS Common Cartridge eksport (F-05, §10). */
+export const exportCartridgeSchema = z.object({
+  courseId: uuidSchema,
+  locale: localeSchema.default('uz-Latn'),
+});
+export type ExportCartridgeInput = z.infer<typeof exportCartridgeSchema>;
 
 export const completeUploadSchema = z.object({
   fileObjectId: uuidSchema,
@@ -191,6 +308,10 @@ export type CreateModuleInput = z.infer<typeof createModuleSchema>;
 export type CreateTopicInput = z.infer<typeof createTopicSchema>;
 export type CreateLessonInput = z.infer<typeof createLessonSchema>;
 export type CreateResourceInput = z.infer<typeof createResourceSchema>;
+export type ResourceMeta = z.infer<typeof resourceMetaSchema>;
+export type UpdateModuleInput = z.infer<typeof updateModuleSchema>;
+export type UpdateTopicInput = z.infer<typeof updateTopicSchema>;
+export type UpdateResourceInput = z.infer<typeof updateResourceSchema>;
 export type ReorderInput = z.infer<typeof reorderSchema>;
 export type CloneCourseInput = z.infer<typeof cloneCourseSchema>;
 export type EnrollInput = z.infer<typeof enrollSchema>;

@@ -23,6 +23,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { QueueService } from '../../common/queue/queue.service';
 import { EventsService, EVENT_TYPES } from '../../common/events/events.service';
 import { AppException } from '../../common/errors/app.exception';
 import type { RequestUser } from '../../common/auth/auth.types';
@@ -48,6 +49,7 @@ export class GradingService {
     private readonly cache: CacheService,
     private readonly audit: AuditService,
     private readonly events: EventsService,
+    private readonly queue: QueueService,
   ) {}
 
   /**
@@ -125,6 +127,14 @@ export class GradingService {
     });
 
     await this.invalidate(params.courseId, params.userId);
+
+    // LTI AGS: topshiriq bahosi platformadagi alohida line item'ga ham boradi
+    await this.queue.enqueue('lti.ags.push', {
+      courseId: params.courseId,
+      userId: params.userId,
+      assignmentId: params.assignmentId,
+    });
+
     return { gradeId };
   }
 
@@ -198,6 +208,13 @@ export class GradingService {
       type: EVENT_TYPES.GRADE_PUBLISHED,
       userId: params.userId,
       payload: { courseId: params.courseId, quizId: params.quizId, score: params.score },
+    });
+
+    // LTI AGS: platformadan kelgan talabalar uchun baho qaytariladi (havola bo'lmasa ishchi o'tkazib yuboradi)
+    await this.queue.enqueue('lti.ags.push', {
+      courseId: params.courseId,
+      userId: params.userId,
+      quizId: params.quizId,
     });
 
     return { gradeId };
@@ -308,6 +325,9 @@ export class GradingService {
       userId: params.userId,
       payload: { courseId: params.courseId, score: params.score },
     });
+
+    // LTI AGS: platformadan kelgan talabalar uchun baho qaytariladi (havola bo'lmasa ishchi o'tkazib yuboradi)
+    await this.queue.enqueue('lti.ags.push', { courseId: params.courseId, userId: params.userId });
 
     return { gradeId, score: params.score };
   }

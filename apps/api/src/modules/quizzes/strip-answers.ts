@@ -44,7 +44,11 @@ export function stripAnswers(
       return {
         type: payload.type,
         template: payload.template,
-        blanks: payload.blanks.map((blank) => ({ key: blank.key })),
+        blanks: payload.blanks.map((blank) => ({
+          key: blank.key,
+          // Ro'yxatli bo'shliq: variantlar javob emas — talaba ulardan tanlaydi
+          ...(blank.options ? { options: blank.options } : {}),
+        })),
       };
 
     case 'ESSAY':
@@ -58,7 +62,11 @@ export function stripAnswers(
 
     case 'NUMERIC':
       // `correctValue` va `tolerance` yuborilmaydi
-      return { type: payload.type, unit: payload.unit };
+      return {
+        type: payload.type,
+        unit: payload.unit,
+        ...(payload.range ? { range: payload.range } : {}),
+      };
 
     case 'HOTSPOT':
       // `requiredAreaIds` yuborilmaydi
@@ -68,6 +76,7 @@ export function stripAnswers(
         areas: payload.areas.map((area) => ({
           id: area.id,
           shape: area.shape,
+          ...(area.points ? { points: area.points } : {}),
           x: area.x,
           y: area.y,
           width: area.width,

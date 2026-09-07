@@ -10,9 +10,10 @@ import { useQuery } from '@tanstack/react-query';
 import { FileText, Search } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { localize } from '@/lib/utils';
-import type { AppLocale } from '@/i18n/routing';
+import { Link, type AppLocale } from '@/i18n/routing';
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -177,13 +178,23 @@ export default function CurriculumPage() {
                       </TableCell>
                       <TableCell className="text-center tabular-nums">{subject.credits}</TableCell>
                       <TableCell>
-                        {syllabus ? (
-                          <Badge variant={syllabus.status === 'APPROVED' ? 'success' : 'warning'}>
-                            {t(`curriculum.${syllabus.status}`)} · v{syllabus.currentVersion}
-                          </Badge>
-                        ) : (
-                          <Badge variant="muted">—</Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {syllabus ? (
+                            <Badge variant={syllabus.status === 'APPROVED' ? 'success' : 'warning'}>
+                              {t(`curriculum.${syllabus.status}`)} · v{syllabus.currentVersion}
+                            </Badge>
+                          ) : (
+                            <Badge variant="muted">—</Badge>
+                          )}
+                          {/* Konstruktor va tasdiqlash oqimi fan sahifasida */}
+                          <Button asChild size="sm" variant="ghost">
+                            <Link href={`/curriculum/subjects/${subject.id}/syllabus`}>
+                              {syllabus
+                                ? t('curriculum.openSyllabus')
+                                : t('curriculum.createSyllabus')}
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

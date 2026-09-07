@@ -9,6 +9,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import {
   autograde,
   requiresManualGrading,
@@ -23,6 +24,7 @@ import {
   type QuestionResponse,
   type SaveAnswerInput,
   type SetQuizQuestionsInput,
+  type UpdateQuizInput,
 } from '@lms/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
@@ -83,6 +85,104 @@ export class QuizzesService {
       resource: 'quiz',
       resourceId: quiz.id,
       after: { courseId: input.courseId, controlType: input.controlType },
+    });
+    return quiz;
+  }
+
+  /** Test sozlamalari (o'qituvchi uchun, urinishlar soni bilan). */
+  async getSettings(quizId: string) {
+    const quiz = await this.prisma.db.quiz.findUnique({
+      where: { id: quizId },
+      select: {
+        id: true,
+        courseId: true,
+        topicId: true,
+        title: true,
+        description: true,
+        controlType: true,
+        durationMinutes: true,
+        maxAttempts: true,
+        gradingMethod: true,
+        shuffleQuestions: true,
+        shuffleOptions: true,
+        questionsPerAttempt: true,
+        opensAt: true,
+        closesAt: true,
+        passScore: true,
+        proctoringEnabled: true,
+        showAnswers: true,
+        questionsPerPage: true,
+        allowBacktrack: true,
+        isPublished: true,
+        _count: { select: { attempts: true, questions: true } },
+      },
+    });
+    if (!quiz) throw AppException.notFound('quiz', quizId);
+    const { _count, ...rest } = quiz;
+    return { ...rest, attempts: _count.attempts, questionCount: _count.questions };
+  }
+
+  /**
+   * Test sozlamalarini yangilash (Moodle "Edit settings"). Urinish boshlangan
+   * bo'lsa ham vaqt/nashr sozlamalari o'zgartiriladi — savollar emas (u alohida
+   * `setQuestions` da qulflanadi).
+   */
+  async update(quizId: string, input: UpdateQuizInput, actor: RequestUser) {
+    const existing = await this.prisma.db.quiz.findUnique({
+      where: { id: quizId },
+      select: { id: true, opensAt: true, closesAt: true },
+    });
+    if (!existing) throw AppException.notFound('quiz', quizId);
+
+    const opensAt = input.opensAt !== undefined ? input.opensAt : existing.opensAt;
+    const closesAt = input.closesAt !== undefined ? input.closesAt : existing.closesAt;
+    if (opensAt && closesAt && closesAt <= opensAt) {
+      throw AppException.validation([{ field: 'closesAt', code: 'validation.start_before_end' }]);
+    }
+
+    const quiz = await this.prisma.db.quiz.update({
+      where: { id: quizId },
+      data: {
+        ...(input.topicId !== undefined ? { topicId: input.topicId } : {}),
+        ...(input.title !== undefined
+          ? { title: this.sanitizer.sanitizeLocalized(input.title) as never }
+          : {}),
+        ...(input.description !== undefined
+          ? { description: this.sanitizer.sanitizeLocalized(input.description) as never }
+          : {}),
+        ...(input.controlType !== undefined ? { controlType: input.controlType } : {}),
+        ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
+        ...(input.maxAttempts !== undefined ? { maxAttempts: input.maxAttempts } : {}),
+        ...(input.gradingMethod !== undefined ? { gradingMethod: input.gradingMethod } : {}),
+        ...(input.shuffleQuestions !== undefined
+          ? { shuffleQuestions: input.shuffleQuestions }
+          : {}),
+        ...(input.shuffleOptions !== undefined ? { shuffleOptions: input.shuffleOptions } : {}),
+        ...(input.questionsPerAttempt !== undefined
+          ? { questionsPerAttempt: input.questionsPerAttempt }
+          : {}),
+        ...(input.questionsPerPage !== undefined
+          ? { questionsPerPage: input.questionsPerPage }
+          : {}),
+        ...(input.allowBacktrack !== undefined ? { allowBacktrack: input.allowBacktrack } : {}),
+        ...(input.opensAt !== undefined ? { opensAt: input.opensAt } : {}),
+        ...(input.closesAt !== undefined ? { closesAt: input.closesAt } : {}),
+        ...(input.passScore !== undefined ? { passScore: input.passScore } : {}),
+        ...(input.proctoringEnabled !== undefined
+          ? { proctoringEnabled: input.proctoringEnabled }
+          : {}),
+        ...(input.showAnswers !== undefined ? { showAnswers: input.showAnswers } : {}),
+        ...(input.isPublished !== undefined ? { isPublished: input.isPublished } : {}),
+      },
+      select: { id: true, title: true, durationMinutes: true, isPublished: true },
+    });
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'quiz.update',
+      resource: 'quiz',
+      resourceId: quizId,
+      after: input as Record<string, unknown>,
     });
     return quiz;
   }
@@ -157,6 +257,62 @@ export class QuizzesService {
           : false,
       },
     });
+  }
+
+  /**
+   * Test konstruktori uchun testning joriy holati (F-07).
+   *
+   * `startAttempt` dan farqi: bu yerda to'g'ri javoblar OLIB TASHLANMAYDI,
+   * chunki metod faqat `quiz:manage:own_course` ruxsati bilan chaqiriladi —
+   * o'qituvchi savol matnini va ballarni ko'rishi kerak. Urinish boshlangan
+   * testda savollar ro'yxati qulflanadi (`setQuestions` uni rad etadi),
+   * shuning uchun `locked` bayrog'i ham qaytariladi.
+   */
+  async questionsForBuilder(quizId: string) {
+    const quiz = await this.prisma.db.quiz.findUnique({
+      where: { id: quizId },
+      select: {
+        id: true,
+        courseId: true,
+        title: true,
+        controlType: true,
+        durationMinutes: true,
+        questionsPerAttempt: true,
+        questionsPerPage: true,
+        poolSelection: true,
+        isPublished: true,
+      },
+    });
+    if (!quiz) throw AppException.notFound('quiz', quizId);
+
+    const [questions, attempts] = await Promise.all([
+      this.prisma.quizQuestion.findMany({
+        // Soft delete kengaytmasi faqat RO'YXAT munosabatlarini filtrlaydi,
+        // `question` esa birlik munosabat — shuning uchun filtr qo'lda qo'yiladi.
+        where: { quizId, question: { deletedAt: null } },
+        orderBy: { position: 'asc' },
+        select: {
+          questionId: true,
+          score: true,
+          position: true,
+          poolTag: true,
+          question: {
+            select: {
+              id: true,
+              type: true,
+              text: true,
+              difficulty: true,
+              bloomLevel: true,
+              defaultScore: true,
+              bankId: true,
+            },
+          },
+        },
+      }),
+      this.prisma.db.quizAttempt.count({ where: { quizId } }),
+    ]);
+
+    return { quiz, questions, locked: attempts > 0, attempts };
   }
 
   // --- Urinish oqimi --------------------------------------------------------
@@ -254,20 +410,50 @@ export class QuizzesService {
 
     const maxScore = round2(ordered.reduce((sum, item) => sum + item.score, 0));
 
-    const attempt = await this.prisma.db.quizAttempt.create({
-      data: {
-        quizId,
-        userId: actor.id,
-        attemptNumber,
-        status: 'IN_PROGRESS',
-        questionOrder: ordered.map((item) => item.questionId) as never,
-        seed,
-        maxScore,
-        expiresAt: new Date(now.getTime() + quiz.durationMinutes * 60_000),
-        ip: ip ?? null,
-      },
-      select: { id: true },
-    });
+    /**
+     * Poyga holati: bir vaqtda kelgan ikkita so'rov `previousCount` ni bir xil
+     * hisoblaydi va bir xil `attemptNumber` bilan yozuv yaratmoqchi bo'ladi
+     * (React StrictMode `useEffect` ni ikki marta chaqiradi, foydalanuvchi ham
+     * ikki marta bosishi mumkin). `@@unique([quizId, userId, attemptNumber])`
+     * ikkinchisini rad etadi — bu TO'G'RI himoya, lekin foydalanuvchiga xato
+     * ko'rsatish noto'g'ri bo'lardi: u aynan shu urinishni so'ragan.
+     *
+     * Shu sababli cheklov buzilganda birinchi so'rov yaratgan faol urinish
+     * qaytariladi — natija ikkala holatda ham bir xil bo'ladi (idempotent).
+     */
+    let attempt: { id: string };
+    try {
+      attempt = await this.prisma.db.quizAttempt.create({
+        data: {
+          quizId,
+          userId: actor.id,
+          attemptNumber,
+          status: 'IN_PROGRESS',
+          questionOrder: ordered.map((item) => item.questionId) as never,
+          seed,
+          maxScore,
+          expiresAt: new Date(now.getTime() + quiz.durationMinutes * 60_000),
+          ip: ip ?? null,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      const isDuplicate =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+      if (!isDuplicate) throw error;
+
+      const concurrent = await this.prisma.db.quizAttempt.findFirst({
+        where: { quizId, userId: actor.id, status: 'IN_PROGRESS' },
+        select: { id: true },
+      });
+      // Yozuv boshqa sababdan takrorlangan bo'lsa — xatoni yashirmaymiz
+      if (!concurrent) throw error;
+
+      this.logger.warn(
+        `Urinish yaratishda poyga aniqlandi (quiz=${quizId}, user=${actor.id}) — mavjud urinish qaytarildi`,
+      );
+      return this.buildAttemptPayload(concurrent.id, actor.id);
+    }
 
     await this.audit.record({
       actorId: actor.id,

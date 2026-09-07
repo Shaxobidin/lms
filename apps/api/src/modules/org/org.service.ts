@@ -20,6 +20,8 @@ import type {
   CreateGroupInput,
   CreateSemesterInput,
   CreateSpecialityInput,
+  UpdateAcademicYearInput,
+  UpdateSemesterInput,
 } from '@lms/shared';
 
 const TREE_CACHE_KEY = 'org:tree';
@@ -240,6 +242,40 @@ export class OrgService {
     return speciality;
   }
 
+  async updateSpeciality(
+    id: string,
+    input: Partial<Omit<CreateSpecialityInput, 'departmentId'>>,
+    actor: RequestUser,
+  ) {
+    const before = await this.prisma.db.speciality.findUnique({
+      where: { id },
+      select: { code: true, name: true, level: true, durationYears: true },
+    });
+    if (!before) throw AppException.notFound('speciality', id);
+
+    const updated = await this.prisma.db.speciality.update({
+      where: { id },
+      data: {
+        ...(input.code !== undefined ? { code: input.code } : {}),
+        ...(input.name !== undefined ? { name: input.name as never } : {}),
+        ...(input.level !== undefined ? { level: input.level } : {}),
+        ...(input.durationYears !== undefined ? { durationYears: input.durationYears } : {}),
+      },
+      select: { id: true, code: true, name: true, level: true, durationYears: true },
+    });
+
+    await this.invalidateTree();
+    await this.audit.recordChange({
+      actorId: actor.id,
+      action: 'speciality.update',
+      resource: 'speciality',
+      resourceId: id,
+      before: before as Record<string, unknown>,
+      after: updated as Record<string, unknown>,
+    });
+    return updated;
+  }
+
   // --- Guruh ----------------------------------------------------------------
 
   async listGroups(filters: { specialityId?: string; facultyId?: string; curatorId?: string }) {
@@ -297,6 +333,61 @@ export class OrgService {
       after: { name: input.name },
     });
     return group;
+  }
+
+  async updateGroup(
+    id: string,
+    input: Partial<Omit<CreateGroupInput, 'specialityId'>>,
+    actor: RequestUser,
+  ) {
+    const before = await this.prisma.db.group.findUnique({
+      where: { id },
+      select: {
+        name: true,
+        admissionYear: true,
+        educationForm: true,
+        curatorId: true,
+        languageOfInstruction: true,
+      },
+    });
+    if (!before) throw AppException.notFound('group', id);
+
+    const updated = await this.prisma.db.group.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.admissionYear !== undefined ? { admissionYear: input.admissionYear } : {}),
+        ...(input.educationForm !== undefined ? { educationForm: input.educationForm } : {}),
+        ...(input.curatorId !== undefined ? { curatorId: input.curatorId } : {}),
+        ...(input.languageOfInstruction !== undefined
+          ? { languageOfInstruction: input.languageOfInstruction }
+          : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        admissionYear: true,
+        educationForm: true,
+        curatorId: true,
+        languageOfInstruction: true,
+      },
+    });
+
+    // Kurator o'zgarsa — uning scope keshi (`groupIds`) eskiradi
+    for (const curatorId of [before.curatorId, updated.curatorId]) {
+      if (curatorId) await this.cache.delByPattern(`auth:ctx:${curatorId}:*`);
+    }
+
+    await this.invalidateTree();
+    await this.audit.recordChange({
+      actorId: actor.id,
+      action: 'group.update',
+      resource: 'group',
+      resourceId: id,
+      before: before as Record<string, unknown>,
+      after: updated as Record<string, unknown>,
+    });
+    return updated;
   }
 
   /**
@@ -440,6 +531,94 @@ export class OrgService {
       after: { number: input.number },
     });
     return semester;
+  }
+
+  /**
+   * O'quv yilini yangilash. `isCurrent: true` berilsa boshqalari o'chiriladi —
+   * yaratishdagi qoida bilan bir xil (bir vaqtda bitta joriy yil).
+   */
+  async updateAcademicYear(id: string, input: UpdateAcademicYearInput, actor: RequestUser) {
+    const before = await this.prisma.db.academicYear.findUnique({
+      where: { id },
+      select: { name: true, startsAt: true, endsAt: true, isCurrent: true },
+    });
+    if (!before) throw AppException.notFound('academicyear', id);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (input.isCurrent) {
+        await tx.academicYear.updateMany({
+          where: { isCurrent: true, id: { not: id } },
+          data: { isCurrent: false },
+        });
+      }
+      return tx.academicYear.update({
+        where: { id },
+        data: {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.startsAt !== undefined ? { startsAt: new Date(input.startsAt) } : {}),
+          ...(input.endsAt !== undefined ? { endsAt: new Date(input.endsAt) } : {}),
+          ...(input.isCurrent !== undefined ? { isCurrent: input.isCurrent } : {}),
+        },
+        select: { id: true, name: true, startsAt: true, endsAt: true, isCurrent: true },
+      });
+    });
+
+    await this.audit.recordChange({
+      actorId: actor.id,
+      action: 'academic_year.update',
+      resource: 'academicyear',
+      resourceId: id,
+      before: before as Record<string, unknown>,
+      after: updated as Record<string, unknown>,
+    });
+    return updated;
+  }
+
+  async updateSemester(id: string, input: UpdateSemesterInput, actor: RequestUser) {
+    const before = await this.prisma.db.semester.findUnique({
+      where: { id },
+      select: { startsAt: true, endsAt: true, isCurrent: true, gradingClosesAt: true },
+    });
+    if (!before) throw AppException.notFound('academicyear', id);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (input.isCurrent) {
+        await tx.semester.updateMany({
+          where: { isCurrent: true, id: { not: id } },
+          data: { isCurrent: false },
+        });
+      }
+      return tx.semester.update({
+        where: { id },
+        data: {
+          ...(input.startsAt !== undefined ? { startsAt: new Date(input.startsAt) } : {}),
+          ...(input.endsAt !== undefined ? { endsAt: new Date(input.endsAt) } : {}),
+          ...(input.isCurrent !== undefined ? { isCurrent: input.isCurrent } : {}),
+          ...(input.gradingClosesAt !== undefined
+            ? { gradingClosesAt: input.gradingClosesAt ? new Date(input.gradingClosesAt) : null }
+            : {}),
+        },
+        select: {
+          id: true,
+          number: true,
+          startsAt: true,
+          endsAt: true,
+          isCurrent: true,
+          gradingClosesAt: true,
+        },
+      });
+    });
+
+    await this.cache.del('org:current-semester');
+    await this.audit.recordChange({
+      actorId: actor.id,
+      action: 'semester.update',
+      resource: 'academicyear',
+      resourceId: id,
+      before: before as Record<string, unknown>,
+      after: updated as Record<string, unknown>,
+    });
+    return updated;
   }
 
   /** Joriy semestr — juda tez-tez so'raladi, shuning uchun keshlanadi. */

@@ -3,10 +3,32 @@
  * tizim salomatligi va zaxira nusxa qo'llanmasi.
  */
 
-import { Body, Controller, Get, Injectable, Module, Param, Patch, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Injectable,
+  Module,
+  Param,
+  Patch,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
-import { cursorPaginationSchema, decodeCursor, encodeCursor, uuidSchema } from '@lms/shared';
+import {
+  SITE_ADMIN_TREE,
+  SITE_SETTING_DEFAULTS,
+  SITE_SETTING_FIELDS,
+  cursorPaginationSchema,
+  decodeCursor,
+  encodeCursor,
+  findSiteSection,
+  siteSectionSchema,
+  uuidSchema,
+} from '@lms/shared';
+import { AppException } from '../../common/errors/app.exception';
+import { SiteSettingsService } from '../../common/settings/site-settings.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -22,7 +44,101 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly audit: AuditService,
+    private readonly siteSettings: SiteSettingsService,
   ) {}
+
+  // --- Sayt boshqaruvi (Moodle "Site administration" daraxti) ---------------
+
+  /** Daraxt + joriy qiymatlar (bazada bo'lmasa reestr standarti). */
+  async siteTree() {
+    const rows = await this.prisma.setting.findMany({
+      where: { key: { in: SITE_SETTING_FIELDS.map((field) => field.key) } },
+      select: { key: true, value: true, updatedAt: true },
+    });
+    const stored = new Map(rows.map((row) => [row.key, row]));
+    const values: Record<string, unknown> = {};
+    const updatedAt: Record<string, string> = {};
+    for (const field of SITE_SETTING_FIELDS) {
+      const row = stored.get(field.key);
+      values[field.key] = row ? row.value : SITE_SETTING_DEFAULTS[field.key];
+      if (row) updatedAt[field.key] = row.updatedAt.toISOString();
+    }
+    return { tree: SITE_ADMIN_TREE, values, updatedAt };
+  }
+
+  /** Bitta bo'lim: maydonlar va qiymatlar. */
+  async siteSection(sectionId: string) {
+    const section = findSiteSection(sectionId);
+    if (!section) throw AppException.notFound('site_section', sectionId);
+    const { values } = await this.siteTree();
+    const own: Record<string, unknown> = {};
+    for (const field of section.fields) own[field.key] = values[field.key];
+    return { section, values: own };
+  }
+
+  /**
+   * Bo'limni yangilash: faqat reestrdagi kalitlar, reestr sxemasi bilan
+   * tekshiriladi; `isPublic` va tavsif reestrdan olinadi (qo'lda kiritilmaydi).
+   */
+  async updateSiteSection(sectionId: string, input: Record<string, unknown>, actor: RequestUser) {
+    const section = findSiteSection(sectionId);
+    if (!section) throw AppException.notFound('site_section', sectionId);
+    const parsed = siteSectionSchema(section).safeParse(input);
+    if (!parsed.success) {
+      throw AppException.validation(
+        parsed.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          code: issue.message.startsWith('validation.') ? issue.message : 'validation.invalid',
+        })),
+      );
+    }
+    const entries = Object.entries(parsed.data).filter(([, value]) => value !== undefined);
+    if (entries.length === 0) return this.siteSection(sectionId);
+
+    // Til sozlamalari: standart til yoqilgan tillar ichida bo'lishi shart
+    if (sectionId === 'language-settings') {
+      const current = await this.siteSection(sectionId);
+      const merged = { ...current.values, ...parsed.data } as Record<string, unknown>;
+      const enabled = merged['i18n.enabledLocales'] as string[];
+      if (Array.isArray(enabled) && !enabled.includes(String(merged['ui.defaultLocale']))) {
+        throw AppException.businessRule('errors.default_locale_not_enabled');
+      }
+    }
+
+    const before = await this.prisma.setting.findMany({
+      where: { key: { in: entries.map(([key]) => key) } },
+      select: { key: true, value: true },
+    });
+    const beforeMap = Object.fromEntries(before.map((row) => [row.key, row.value]));
+
+    await this.prisma.$transaction(
+      entries.map(([key, value]) => {
+        const field = section.fields.find((item) => item.key === key)!;
+        return this.prisma.setting.upsert({
+          where: { key },
+          create: {
+            key,
+            value: value as never,
+            description: field.label['uz-Latn'] ?? key,
+            isPublic: Boolean(field.isPublic),
+          },
+          update: { value: value as never, isPublic: Boolean(field.isPublic) },
+        });
+      }),
+    );
+
+    await this.cache.del('settings:public');
+    await this.siteSettings.invalidate(entries.map(([key]) => key));
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'site.settings.update',
+      resource: 'system',
+      resourceId: sectionId,
+      before: beforeMap,
+      after: Object.fromEntries(entries),
+    });
+    return this.siteSection(sectionId);
+  }
 
   /** Audit jurnali — cursor pagination bilan (jurnal juda katta bo'lishi mumkin). */
   async auditLog(
@@ -268,6 +384,31 @@ export class AdminController {
     @CurrentUser() actor: RequestUser,
   ) {
     return this.admin.updateSetting(key, dto.value, actor);
+  }
+
+  @Get('site')
+  @RequirePermission(['system:read:all', 'system:manage:all'])
+  @ApiOperation({ summary: 'Sayt boshqaruvi daraxti va joriy qiymatlar (Moodle uslubi)' })
+  async siteTree() {
+    return this.admin.siteTree();
+  }
+
+  @Get('site/:section')
+  @RequirePermission(['system:read:all', 'system:manage:all'])
+  @ApiOperation({ summary: "Sayt boshqaruvi bo'limi" })
+  async siteSection(@Param('section') section: string) {
+    return this.admin.siteSection(section);
+  }
+
+  @Put('site/:section')
+  @RequirePermission('system:manage:all')
+  @ApiOperation({ summary: "Sayt boshqaruvi bo'limini yangilash (reestr sxemasi bilan)" })
+  async updateSiteSection(
+    @Param('section') section: string,
+    @Body(zodBody(z.record(z.unknown()))) dto: Record<string, unknown>,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.admin.updateSiteSection(section, dto, actor);
   }
 
   @Get('feature-flags')
