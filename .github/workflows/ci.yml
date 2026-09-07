@@ -184,6 +184,13 @@ jobs:
       - name: Smoke test (§15 qabul mezonlari)
         run: node scripts/smoke.mjs
 
+      # Playwright brauzeri web ilovaga ulanadi — uni ham ko'tarish kerak (avval yo'q edi)
+      - name: Web ilovani qurish va ishga tushirish
+        run: |
+          npm run build --workspace=@lms/web
+          npm run start --workspace=@lms/web &
+          npx wait-on http://localhost:3000/uz-Latn/login --timeout 180000
+
       - name: Playwright brauzerlarini o'rnatish
         run: npx playwright install --with-deps chromium
         working-directory: apps/web
