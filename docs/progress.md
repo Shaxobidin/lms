@@ -877,6 +877,34 @@ rol berish oynasi umuman yo'q edi. Foydalanuvchi shu jadvalni eslatdi.
 Natija: `check:gaps` **218/218**, e2e 111, vitest shared 91, i18n 4 × 1445,
 `npm run verify` ✅.
 
+## 3r. Dev serverning sekinligi: Turbopack (2026-09-07)
+
+Foydalanuvchi "o'ta sekin ishlayapti" dedi. O'lchov: iliq sahifalar 170-600 ms
+(muammo emas), API 11-113 ms (muammo emas), lekin **sovuq kompilyatsiya**
+webpack'da juda qimmat edi - dev server 50.7 s da tayyor bo'lar, har bir
+sahifa birinchi ochilganda 10-90 s kutilardi. 8 GB mashinada xotira tugab
+dev server o'ldirilganda hammasi yana noldan boshlanardi.
+
+Yechim: `next dev --turbopack` (Next 15.5, maxsus webpack konfiguratsiyasi
+yo'q, `next-intl` 3.26 Turbopack bilan mos).
+
+| O'lchov        | Webpack | Turbopack  |
+| -------------- | ------- | ---------- |
+| Server tayyor  | 50.7 s  | **6.1 s**  |
+| `middleware`   | 12.6 s  | **2.7 s**  |
+| `/admin/site`  | 92.7 s  | **0.86 s** |
+| `/messages`    | 11.2 s  | **0.92 s** |
+| `/analytics`   | 10.5 s  | **2.2 s**  |
+| `/admin/users` | 2.0 s   | **0.66 s** |
+
+Production yo'liga ta'sir yo'q: `build`/`start` o'zgarmadi, CI (E2E va Docker
+image) production build'dan foydalanadi.
+
+Sinab ko'rilgan, ammo **rad etilgan**: `nest-cli.json` da `deleteOutDir: false`
+(API ni qayta ishga tushirishni tezlashtirish uchun) - o'lchov farq
+ko'rsatmadi (109 s to'liq qurish, 114 s "inkremental"), eskirgan artefakt
+xavfi esa qoladi, shuning uchun qaytarildi.
+
 ## 4. Ataylab qabul qilingan yechimlar
 
 | Yechim                                           | Sabab                                                                    |

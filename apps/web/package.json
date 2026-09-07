@@ -4,7 +4,7 @@
   "private": true,
   "description": "QDU LMS — frontend (Next.js 15 App Router)",
   "scripts": {
-    "dev": "dotenv -e ../../.env -- next dev -p 3000",
+    "dev": "dotenv -e ../../.env -- next dev --turbopack -p 3000",
     "build": "dotenv -e ../../.env -v NODE_ENV=production -- next build",
     "start": "dotenv -e ../../.env -- next start -p 3000",
     "typecheck": "tsc --noEmit",

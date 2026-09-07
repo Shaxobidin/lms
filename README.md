@@ -124,24 +124,24 @@ frontend ham bir xil zod sxemalari va ruxsat mantig'idan foydalanadi.
 
 ## Buyruqlar
 
-| Buyruq                    | Vazifasi                                           |
-| ------------------------- | -------------------------------------------------- |
-| `npm run dev`             | API va web ni hot-reload bilan ishga tushirish     |
-| `npm run build`           | Barcha paketlarni qurish                           |
-| `npm run verify`          | Format + lint + tiplar + TODO + i18n + testlar     |
-| `npm test`                | Unit testlar (256 ta: shared, API, web)            |
-| `npm run test:cov`        | Qamrov bilan (chegara: 70%)                        |
-| `npm run test:e2e`        | Playwright e2e testlari (48 ta)                    |
-| `npm run db:migrate`      | Yangi migratsiya yaratish                          |
-| `npm run db:deploy`       | Migratsiyalarni qo'llash                           |
-| `npm run db:seed`         | Demo ma'lumotlarni yuklash                         |
-| `npm run db:reset`        | Bazani tozalab qayta yaratish                      |
-| `npm run openapi`         | OpenAPI 3.1 spetsifikatsiyasini generatsiya qilish |
-| `node scripts/smoke.mjs`  | Tizim uchdan-uchgacha ishlashini tekshirish        |
-| `npm run check:documents` | Hujjat va sertifikat oqimi (GOST DOCX, PDF, QR)    |
-| `npm run check:queues`    | Navbat oqimi: xat yuborish va sertifikat PDF       |
-| `npm run load-test`       | Yuk sinovi: p95 kechikish va tezlik (NF-01/NF-02)  |
-| `npm run check:builder`   | Kurs konstruktori: tuzilma, materiallar, ruxsatlar |
+| Buyruq                    | Vazifasi                                                         |
+| ------------------------- | ---------------------------------------------------------------- |
+| `npm run dev`             | API va web ni hot-reload bilan ishga tushirish (web — Turbopack) |
+| `npm run build`           | Barcha paketlarni qurish                                         |
+| `npm run verify`          | Format + lint + tiplar + TODO + i18n + testlar                   |
+| `npm test`                | Unit testlar (256 ta: shared, API, web)                          |
+| `npm run test:cov`        | Qamrov bilan (chegara: 70%)                                      |
+| `npm run test:e2e`        | Playwright e2e testlari (48 ta)                                  |
+| `npm run db:migrate`      | Yangi migratsiya yaratish                                        |
+| `npm run db:deploy`       | Migratsiyalarni qo'llash                                         |
+| `npm run db:seed`         | Demo ma'lumotlarni yuklash                                       |
+| `npm run db:reset`        | Bazani tozalab qayta yaratish                                    |
+| `npm run openapi`         | OpenAPI 3.1 spetsifikatsiyasini generatsiya qilish               |
+| `node scripts/smoke.mjs`  | Tizim uchdan-uchgacha ishlashini tekshirish                      |
+| `npm run check:documents` | Hujjat va sertifikat oqimi (GOST DOCX, PDF, QR)                  |
+| `npm run check:queues`    | Navbat oqimi: xat yuborish va sertifikat PDF                     |
+| `npm run load-test`       | Yuk sinovi: p95 kechikish va tezlik (NF-01/NF-02)                |
+| `npm run check:builder`   | Kurs konstruktori: tuzilma, materiallar, ruxsatlar               |
 
 ---
 
