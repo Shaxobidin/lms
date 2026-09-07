@@ -23,6 +23,7 @@ interface ApiClient {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body: unknown): Promise<T>;
   put<T>(path: string, body: unknown): Promise<T>;
+  patch<T>(path: string, body: unknown): Promise<T>;
 }
 
 async function createClient(email: string): Promise<ApiClient> {
@@ -61,6 +62,8 @@ async function createClient(email: string): Promise<ApiClient> {
       unwrap<T>(await ctx.post(`${API_URL}${path}`, { headers, data })),
     put: async <T>(path: string, data: unknown) =>
       unwrap<T>(await ctx.put(`${API_URL}${path}`, { headers, data })),
+    patch: async <T>(path: string, data: unknown) =>
+      unwrap<T>(await ctx.patch(`${API_URL}${path}`, { headers, data })),
   };
 }
 

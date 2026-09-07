@@ -987,7 +987,17 @@ test.describe('Talaba bo`limi (HEMIS uslubi)', () => {
   test('talaba xizmatlari: ariza yuboriladi va ro`yxatda ko`rinadi', async ({ page }) => {
     await signIn(page, ACCOUNTS.student);
     const student = await apiAs(ACCOUNTS.student);
+    const admin = await apiAs(ACCOUNTS.admin);
     const subject = `Akademik ta'til ${Date.now().toString(36)}`;
+
+    // Bir turdagi ochiq ariza faqat bitta bo'ladi — oldingi ishga tushirishlardan
+    // qolganlarini administrator yopadi, aks holda "allaqachon ko'rib chiqilmoqda"
+    const stale = await admin.get<Array<{ id: string; user: { id: string } }>>(
+      '/student-requests?status=PENDING&type=ACADEMIC_LEAVE',
+    );
+    for (const row of stale.filter((item) => item.user.id === student.userId)) {
+      await admin.patch(`/student-requests/${row.id}`, { status: 'REJECTED', resolution: 'e2e' });
+    }
 
     await page.goto('/uz-Latn/student/services');
     await waitForContent(page);
