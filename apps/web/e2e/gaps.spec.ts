@@ -1184,3 +1184,45 @@ test.describe('IMS Common Cartridge import', () => {
     await expect(image).toHaveAttribute('src', /^https?:\/\//, { timeout: 20_000 });
   });
 });
+
+test.describe('Rol berish — doira (scope)', () => {
+  test('dekanat roli fakultet bilan beriladi, doira ro`yxatda ko`rinadi', async ({ page }) => {
+    await signIn(page, ACCOUNTS.admin);
+    const admin = await apiAs(ACCOUNTS.admin);
+    const email = `scope-e2e-${Date.now().toString(36)}@qdu.uz`;
+    const created = await admin.post<{ id: string }>('/users', {
+      email,
+      firstName: 'Doira',
+      lastName: 'Sinov',
+      roleCode: 'TEACHER',
+      password: 'Doira!Sinov2026',
+    });
+
+    await page.goto('/uz-Latn/admin/users');
+    await waitForContent(page);
+    await page.getByLabel(/^qidirish$/i).fill(email);
+    const row = page.getByRole('row', { name: new RegExp(email) });
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await row.getByRole('button', { name: /rol berish/i }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const save = dialog.getByRole('button', { name: /^saqlash$/i });
+    await dialog.locator('#role-code').selectOption('DEANERY');
+    // Fakultet tanlanmaguncha saqlab bo'lmaydi
+    await expect(dialog.getByText(/fakultet tanlanishi kerak/i)).toBeVisible();
+    await expect(save).toBeDisabled();
+    await dialog.locator('#role-faculty').selectOption({ index: 1 });
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(page.getByText(/rol berildi/i).first()).toBeVisible({ timeout: 15_000 });
+
+    const detail = await admin.get<{
+      roles: Array<{ code: string; faculty: { id: string } | null }>;
+    }>(`/users/${created.id}`);
+    const dean = detail.roles.find((role) => role.code === 'DEANERY');
+    expect(dean?.faculty?.id).toBeTruthy();
+
+    await admin.patch(`/users/${created.id}/status`, { status: 'BLOCKED', reason: 'e2e' });
+  });
+});

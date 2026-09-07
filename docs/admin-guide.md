@@ -150,6 +150,18 @@ Rol berish uchun **doira (scope)** ham ko'rsatiladi:
 | Metodist       | Fakultet            |
 | Tashqi ekspert | **Muddat majburiy** |
 
+Bu talab **majburiy**: doirasiz yuborilgan so'rov 400 (`VALIDATION_ERROR`) bilan qaytadi
+(`validation.scope_faculty_required`, `validation.scope_department_required`,
+`validation.required_for_temporary_role`), foydalanuvchi yaratishda ham xuddi
+shu qoida amal qiladi. Kafedra mudiri uchun fakultet **kafedradan avtomatik
+chiqariladi**; kafedra boshqa fakultetga tegishli bo'lsa —
+`validation.department_not_in_faculty`.
+
+Interfeys: **Foydalanuvchilar → qator → "Rol berish"**. Oynada joriy rollar
+(doirasi bilan, "×" — bekor qilish), rol tanlovi va rolga qarab fakultet /
+kafedra / muddat maydonlari; talab bajarilmaguncha "Saqlash" faol bo'lmaydi.
+Ro'yxatda rol nishoni doira bilan ko'rsatiladi: _Dekanat · Aniq fanlar_.
+
 Rol berilgandan keyin foydalanuvchining ruxsatlari **darhol** yangilanadi.
 
 ### Bloklash
