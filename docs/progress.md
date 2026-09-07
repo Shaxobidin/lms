@@ -27,14 +27,14 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 
 | Ko'rsatkich                          | Qiymat                                                               | Talab             |
 | ------------------------------------ | -------------------------------------------------------------------- | ----------------- |
-| Unit testlar (shared)                | 85 ✅                                                                | —                 |
+| Unit testlar (shared)                | 91 ✅                                                                | —                 |
 | Unit/integratsion testlar (API)      | 184 ✅                                                               | —                 |
 | Unit testlar (web)                   | 25 ✅                                                                | —                 |
 | Qamrov (statements)                  | **85.55%**                                                           | ≥ 70%             |
 | Qamrov (functions / lines)           | 87.27% / 86.74%                                                      | ≥ 70%             |
-| E2E testlar (Playwright)             | **110** ✅ (9 spec; 1 tasi loyihalangan holatda o'tkazib yuboriladi) | —                 |
+| E2E testlar (Playwright)             | **111** ✅ (9 spec; 1 tasi loyihalangan holatda o'tkazib yuboriladi) | —                 |
 | Smoke tekshiruvlari                  | **35/35** ✅                                                         | —                 |
-| i18n to'liqligi                      | 4 til × 1 435 kalit = **5 740** qiymat                               | 0 ta yetishmovchi |
+| i18n to'liqligi                      | 4 til × 1 445 kalit = **5 780** qiymat                               | 0 ta yetishmovchi |
 | OpenAPI                              | 198 yo'l, 234 operatsiya                                             | 3.1               |
 | Lighthouse Performance (ochiq)       | **100**                                                              | ≥ 85              |
 | Lighthouse Accessibility (ochiq)     | **100**                                                              | ≥ 95              |
@@ -47,7 +47,7 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 | Hujjat oqimi tekshiruvi              | **13/13** ✅                                                         | —                 |
 | Navbat oqimi tekshiruvi              | **8/8** ✅                                                           | —                 |
 | Kurs konstruktori tekshiruvi         | **37/37** ✅                                                         | —                 |
-| Uzilishlar tekshiruvi (`check:gaps`) | **203/203** ✅ (§3b–§3p)                                             | —                 |
+| Uzilishlar tekshiruvi (`check:gaps`) | **218/218** ✅ (§3b–§3q)                                             | —                 |
 | API p95 (60 VU, 1 instansiya)        | **258 ms**                                                           | < 300 ms (NF-01)  |
 | Tezlik (60 VU, 1 instansiya)         | **319 RPS**                                                          | —                 |
 | Gorizontal masshtablanish            | 1→2 instansiya: 258 → **344 RPS**                                    | §5 (stateless)    |
@@ -859,6 +859,51 @@ tekshiruvni soxta yiqitardi. Tekshiruv qat'iy qoldirildi, kalit o'zgartirildi.
 Bu bo'limda ochiq nuqson qolmadi — yuqoridagi urinish poygasi tuzatildi.
 
 ---
+
+## 3q. Rol berishda doira (scope) majburiy (2026-09-07)
+
+Admin qo'llanmasi "rol berish uchun doira ham ko'rsatiladi" deb va'da bergan
+edi, lekin API dekanat rolini fakultetsiz qabul qilar (natijada `own_faculty`
+bo'sh to'plamga tenglashib, dekan hech narsani ko'rmas edi), interfeysda esa
+rol berish oynasi umuman yo'q edi. Foydalanuvchi shu jadvalni eslatdi.
+
+| Qism      | Nima qilindi                                                                                                                                                                                                                                                                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kontrakt  | `ROLE_SCOPE_REQUIREMENTS` (DEANERY/METHODIST → fakultet, DEPARTMENT_HEAD → kafedra, EXTERNAL_EXPERT → muddat) va `roleScopeIssues()`; `assignRoleSchema` va `createUserSchema` `superRefine` bilan tekshiradi — bir qoida API va web uchun                                             |
+| API       | `UsersService.resolveRoleScope`: fakultet/kafedra mavjudligi (404), kafedradan fakultet avtomatik (`own_faculty` ham ishlaydi), nomuvofiqlik → `validation.department_not_in_faculty`; audit yozuviga to'liq doira                                                                     |
+| Web       | `/admin/users`: "Rol berish" oynasi — joriy rollar (doira bilan, bekor qilish), rol → fakultet/kafedra/muddat maydonlari, mijoz tomonida `roleScopeIssues` bilan xato matni va o'chirilgan "Saqlash"; ro'yxatda nishon _Dekanat · Aniq fanlar_; i18n `admin.*`, `validation.*` 4 tilda |
+| Tekshiruv | vitest `auth.spec.ts` (6), `check:gaps` 15-bo'lim (15 ta: 400 validatsiya kodlari, yaratishda ham, 404, avtomatik fakultet, yangi dekan darhol ko'radi, bekor qilish), e2e 1 ta (oyna: fakultetsiz saqlab bo'lmaydi → fakultet bilan beriladi → API da doira)                          |
+
+Natija: `check:gaps` **218/218**, e2e 111, vitest shared 91, i18n 4 × 1445,
+`npm run verify` ✅.
+
+## 3r. Dev serverning sekinligi: Turbopack (2026-09-07)
+
+Foydalanuvchi "o'ta sekin ishlayapti" dedi. O'lchov: iliq sahifalar 170-600 ms
+(muammo emas), API 11-113 ms (muammo emas), lekin **sovuq kompilyatsiya**
+webpack'da juda qimmat edi - dev server 50.7 s da tayyor bo'lar, har bir
+sahifa birinchi ochilganda 10-90 s kutilardi. 8 GB mashinada xotira tugab
+dev server o'ldirilganda hammasi yana noldan boshlanardi.
+
+Yechim: `next dev --turbopack` (Next 15.5, maxsus webpack konfiguratsiyasi
+yo'q, `next-intl` 3.26 Turbopack bilan mos).
+
+| O'lchov        | Webpack | Turbopack  |
+| -------------- | ------- | ---------- |
+| Server tayyor  | 50.7 s  | **6.1 s**  |
+| `middleware`   | 12.6 s  | **2.7 s**  |
+| `/admin/site`  | 92.7 s  | **0.86 s** |
+| `/messages`    | 11.2 s  | **0.92 s** |
+| `/analytics`   | 10.5 s  | **2.2 s**  |
+| `/admin/users` | 2.0 s   | **0.66 s** |
+
+Production yo'liga ta'sir yo'q: `build`/`start` o'zgarmadi, CI (E2E va Docker
+image) production build'dan foydalanadi.
+
+Sinab ko'rilgan, ammo **rad etilgan**: `nest-cli.json` da `deleteOutDir: false`
+(API ni qayta ishga tushirishni tezlashtirish uchun) - o'lchov farq
+ko'rsatmadi (109 s to'liq qurish, 114 s "inkremental"), eskirgan artefakt
+xavfi esa qoladi, shuning uchun qaytarildi.
 
 ## 4. Ataylab qabul qilingan yechimlar
 

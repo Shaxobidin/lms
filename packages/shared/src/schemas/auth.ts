@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { codeSchema, emailSchema, localeSchema, phoneSchema, uuidSchema } from './common';
-import { ROLE_CODES } from '../rbac/permissions';
+import { ROLE_CODES, type RoleCode } from '../rbac/permissions';
 
 /**
  * Parol siyosati (§11). Minimal uzunlik va murakkablik `.env` orqali sozlanadi,
@@ -106,30 +106,79 @@ export const updateProfileSchema = z.object({
   avatarFileId: uuidSchema.nullable().optional(),
 });
 
-export const assignRoleSchema = z.object({
-  userId: uuidSchema,
-  roleCode: z.enum(ROLE_CODES),
-  scopeFacultyId: uuidSchema.nullable().optional(),
-  scopeDepartmentId: uuidSchema.nullable().optional(),
-  /** R9 (tashqi ekspert) uchun majburiy. */
-  expiresAt: z.coerce.date().nullable().optional(),
-});
+/**
+ * Rol berishda majburiy doira (ABAC): dekanat va metodist — fakultet, kafedra
+ * mudiri — kafedra; tashqi ekspert doirasiz, ammo muddat bilan (R9).
+ * Doirasiz berilgan dekanat roli hech narsani ko'ra olmaydi (`own_faculty`
+ * bo'sh to'plamga tenglashadi) — shuning uchun sxema darajasida talab qilinadi.
+ */
+export const ROLE_SCOPE_REQUIREMENTS: Partial<
+  Record<RoleCode, 'FACULTY' | 'DEPARTMENT' | 'EXPIRES_AT'>
+> = {
+  DEANERY: 'FACULTY',
+  METHODIST: 'FACULTY',
+  DEPARTMENT_HEAD: 'DEPARTMENT',
+  EXTERNAL_EXPERT: 'EXPIRES_AT',
+};
 
-export const createUserSchema = z.object({
-  email: emailSchema,
-  phone: phoneSchema.optional(),
-  firstName: z.string().trim().min(2).max(64),
-  lastName: z.string().trim().min(2).max(64),
-  middleName: z.string().trim().max(64).optional(),
-  locale: localeSchema.optional(),
-  roleCode: z.enum(ROLE_CODES),
-  scopeFacultyId: uuidSchema.optional(),
-  scopeDepartmentId: uuidSchema.optional(),
-  groupId: uuidSchema.optional(),
-  /** Bo'sh bo'lsa — tasodifiy parol generatsiya qilinadi va emailga yuboriladi. */
-  password: passwordSchema.optional(),
-  externalId: codeSchema.optional(),
-});
+interface RoleScopeCandidate {
+  roleCode: RoleCode;
+  scopeFacultyId?: string | null;
+  scopeDepartmentId?: string | null;
+  expiresAt?: Date | null;
+}
+
+/** Rol/doira mosligini tekshiradi — bo'sh ro'yxat = mos. */
+export function roleScopeIssues(
+  value: RoleScopeCandidate,
+): Array<{ path: 'scopeFacultyId' | 'scopeDepartmentId' | 'expiresAt'; message: string }> {
+  const requirement = ROLE_SCOPE_REQUIREMENTS[value.roleCode];
+  if (requirement === 'FACULTY' && !value.scopeFacultyId) {
+    return [{ path: 'scopeFacultyId', message: 'validation.scope_faculty_required' }];
+  }
+  if (requirement === 'DEPARTMENT' && !value.scopeDepartmentId) {
+    return [{ path: 'scopeDepartmentId', message: 'validation.scope_department_required' }];
+  }
+  if (requirement === 'EXPIRES_AT' && !value.expiresAt) {
+    return [{ path: 'expiresAt', message: 'validation.required_for_temporary_role' }];
+  }
+  return [];
+}
+
+function addRoleScopeIssues(value: RoleScopeCandidate, ctx: z.RefinementCtx) {
+  for (const issue of roleScopeIssues(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: [issue.path] });
+  }
+}
+
+export const assignRoleSchema = z
+  .object({
+    userId: uuidSchema,
+    roleCode: z.enum(ROLE_CODES),
+    scopeFacultyId: uuidSchema.nullable().optional(),
+    scopeDepartmentId: uuidSchema.nullable().optional(),
+    /** R9 (tashqi ekspert) uchun majburiy. */
+    expiresAt: z.coerce.date().nullable().optional(),
+  })
+  .superRefine(addRoleScopeIssues);
+
+export const createUserSchema = z
+  .object({
+    email: emailSchema,
+    phone: phoneSchema.optional(),
+    firstName: z.string().trim().min(2).max(64),
+    lastName: z.string().trim().min(2).max(64),
+    middleName: z.string().trim().max(64).optional(),
+    locale: localeSchema.optional(),
+    roleCode: z.enum(ROLE_CODES),
+    scopeFacultyId: uuidSchema.optional(),
+    scopeDepartmentId: uuidSchema.optional(),
+    groupId: uuidSchema.optional(),
+    /** Bo'sh bo'lsa — tasodifiy parol generatsiya qilinadi va emailga yuboriladi. */
+    password: passwordSchema.optional(),
+    externalId: codeSchema.optional(),
+  })
+  .superRefine(addRoleScopeIssues);
 
 export const listUsersSchema = z.object({
   search: z.string().trim().max(200).optional(),

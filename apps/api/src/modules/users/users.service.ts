@@ -178,7 +178,55 @@ export class UsersService {
     });
 
     if (!user) throw AppException.notFound('user', id);
-    return user;
+    // Rollar ro'yxatdagi bilan bir xil shaklda: { code, name, expiresAt, faculty, department }
+    return {
+      ...user,
+      roles: user.roles.map((item) => ({
+        code: item.role.code,
+        name: item.role.name,
+        expiresAt: item.expiresAt,
+        faculty: item.scopeFaculty,
+        department: item.scopeDepartment,
+      })),
+    };
+  }
+
+  /**
+   * Rol doirasi (ABAC): fakultet/kafedra mavjudligini tekshiradi; kafedra
+   * berilsa fakultet undan chiqariladi — shunda `own_faculty` tekshiruvlari ham
+   * ishlaydi. Rol/doira mosligi (dekanat → fakultet va h.k.) sxemada
+   * (`roleScopeIssues`) tekshirilgan.
+   */
+  private async resolveRoleScope(input: {
+    scopeFacultyId?: string | null;
+    scopeDepartmentId?: string | null;
+  }): Promise<{ scopeFacultyId: string | null; scopeDepartmentId: string | null }> {
+    let facultyId = input.scopeFacultyId ?? null;
+    const departmentId = input.scopeDepartmentId ?? null;
+
+    if (departmentId) {
+      const department = await this.prisma.db.department.findFirst({
+        where: { id: departmentId },
+        select: { facultyId: true },
+      });
+      if (!department) throw AppException.notFound('department', departmentId);
+      if (facultyId && facultyId !== department.facultyId) {
+        throw AppException.validation([
+          { field: 'scopeDepartmentId', code: 'validation.department_not_in_faculty' },
+        ]);
+      }
+      facultyId = department.facultyId;
+    }
+
+    if (facultyId) {
+      const faculty = await this.prisma.db.faculty.findFirst({
+        where: { id: facultyId },
+        select: { id: true },
+      });
+      if (!faculty) throw AppException.notFound('faculty', facultyId);
+    }
+
+    return { scopeFacultyId: facultyId, scopeDepartmentId: departmentId };
   }
 
   /**
@@ -197,6 +245,7 @@ export class UsersService {
       select: { id: true },
     });
     if (!role) throw AppException.notFound('role', input.roleCode);
+    const scope = await this.resolveRoleScope(input);
 
     // Vaqtinchalik parol foydalanuvchiga emailga yuboriladi va birinchi
     // kirishda almashtirilishi so'raladi.
@@ -225,8 +274,8 @@ export class UsersService {
           roles: {
             create: {
               roleId: role.id,
-              scopeFacultyId: input.scopeFacultyId ?? null,
-              scopeDepartmentId: input.scopeDepartmentId ?? null,
+              scopeFacultyId: scope.scopeFacultyId,
+              scopeDepartmentId: scope.scopeDepartmentId,
               grantedById: actor.id,
             },
           },
@@ -341,6 +390,7 @@ export class UsersService {
       select: { id: true },
     });
     if (!role) throw AppException.notFound('role', input.roleCode);
+    const scope = await this.resolveRoleScope(input);
 
     // `upsert` ishlatilmaydi: kompozit unikal kalitda NULL bo'lishi mumkin bo'lgan
     // ustunlar bor, Prisma esa bunday kalitga `null` uzatishga ruxsat bermaydi.
@@ -348,8 +398,8 @@ export class UsersService {
       where: {
         userId: input.userId,
         roleId: role.id,
-        scopeFacultyId: input.scopeFacultyId ?? null,
-        scopeDepartmentId: input.scopeDepartmentId ?? null,
+        scopeFacultyId: scope.scopeFacultyId,
+        scopeDepartmentId: scope.scopeDepartmentId,
       },
       select: { id: true },
     });
@@ -364,8 +414,8 @@ export class UsersService {
         data: {
           userId: input.userId,
           roleId: role.id,
-          scopeFacultyId: input.scopeFacultyId ?? null,
-          scopeDepartmentId: input.scopeDepartmentId ?? null,
+          scopeFacultyId: scope.scopeFacultyId,
+          scopeDepartmentId: scope.scopeDepartmentId,
           expiresAt: input.expiresAt ?? null,
           grantedById: actor.id,
         },
@@ -380,7 +430,7 @@ export class UsersService {
       action: 'user.role_assigned',
       resource: 'user',
       resourceId: input.userId,
-      after: { roleCode: input.roleCode, scope: input.scopeFacultyId ?? input.scopeDepartmentId },
+      after: { roleCode: input.roleCode, ...scope },
       ip,
     });
 

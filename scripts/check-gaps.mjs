@@ -25,11 +25,11 @@ function check(name, ok, detail = '') {
 }
 
 /** Token bilan birga foydalanuvchi id sini ham qaytaradi. */
-async function loginFull(loginValue) {
+async function loginFull(loginValue, password = PASSWORD) {
   const response = await fetch(`${API}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login: loginValue, password: PASSWORD }),
+    body: JSON.stringify({ login: loginValue, password }),
   });
   const body = await response.json();
   if (!body.success) throw new Error(`${loginValue}: ${JSON.stringify(body.error).slice(0, 200)}`);
@@ -3103,6 +3103,181 @@ check(
 );
 const anonRow = surveyId ? await admin(`/admin/audit-log?resource=survey&limit=1`) : { ok: true };
 check('So`rovnoma auditga tushdi', anonRow.ok, `status ${anonRow.status}`);
+
+// =============================================================================
+// 15. ROL BERISH — DOIRA (SCOPE) MAJBURIY
+// =============================================================================
+console.log(
+  '\n15. Rol berish: dekanat/metodist — fakultet, kafedra mudiri — kafedra, tashqi ekspert — muddat',
+);
+
+const scopeFaculties = (await admin('/org/faculties')).body?.data ?? [];
+const facultyPed = scopeFaculties.find((row) => row.code === 'FAK-PED');
+const facultyAniq = scopeFaculties.find((row) => row.code === 'FAK-ANIQ');
+const scopeDepartments = facultyPed
+  ? ((await admin(`/org/departments?facultyId=${facultyPed.id}`)).body?.data ?? [])
+  : [];
+const departmentPed = scopeDepartments[0];
+check(
+  'Fakultet va kafedra ma`lumotnomalari keldi (FAK-PED, FAK-ANIQ, KAF-*)',
+  Boolean(facultyPed && facultyAniq && departmentPed),
+  `${scopeFaculties.length} fakultet, ${scopeDepartments.length} kafedra`,
+);
+
+// Parol siyosati: kamida 10 belgi, katta-kichik harf va raqam
+const SCOPE_PASSWORD = 'Doira!Sinov2026';
+const scopeEmail = `scope-${Date.now().toString(36)}@qdu.uz`;
+const scopeUser = await admin('/users', {
+  method: 'POST',
+  body: JSON.stringify({
+    email: scopeEmail,
+    firstName: 'Doira',
+    lastName: 'Sinov',
+    roleCode: 'TEACHER',
+    password: SCOPE_PASSWORD,
+  }),
+});
+const scopeUserId = scopeUser.body?.data?.id;
+check(
+  'Sinov foydalanuvchisi (o`qituvchi, doirasiz) yaratildi',
+  scopeUser.ok && Boolean(scopeUserId),
+  `status ${scopeUser.status}`,
+);
+
+const assignRole = (payload) =>
+  admin('/users/roles', {
+    method: 'POST',
+    body: JSON.stringify({ userId: scopeUserId, ...payload }),
+  });
+const hasCode = (res, code) => JSON.stringify(res.body ?? {}).includes(code);
+
+const deanNoScope = await assignRole({ roleCode: 'DEANERY' });
+check(
+  'Dekanat fakultetsiz → 400 validation.scope_faculty_required',
+  deanNoScope.status === 400 && hasCode(deanNoScope, 'scope_faculty_required'),
+  `status ${deanNoScope.status}`,
+);
+const methodistNoScope = await assignRole({ roleCode: 'METHODIST' });
+check(
+  'Metodist fakultetsiz → 400',
+  methodistNoScope.status === 400 && hasCode(methodistNoScope, 'scope_faculty_required'),
+  `status ${methodistNoScope.status}`,
+);
+const headNoScope = await assignRole({ roleCode: 'DEPARTMENT_HEAD' });
+check(
+  'Kafedra mudiri kafedrasiz → 400 validation.scope_department_required',
+  headNoScope.status === 400 && hasCode(headNoScope, 'scope_department_required'),
+  `status ${headNoScope.status}`,
+);
+const expertNoExpiry = await assignRole({ roleCode: 'EXTERNAL_EXPERT' });
+check(
+  'Tashqi ekspert muddatsiz → 400 validation.required_for_temporary_role',
+  expertNoExpiry.status === 400 && hasCode(expertNoExpiry, 'required_for_temporary_role'),
+  `status ${expertNoExpiry.status}`,
+);
+const createDeanNoScope = await admin('/users', {
+  method: 'POST',
+  body: JSON.stringify({
+    email: `scope2-${Date.now().toString(36)}@qdu.uz`,
+    firstName: 'Doira',
+    lastName: 'Sinov',
+    roleCode: 'DEANERY',
+  }),
+});
+check(
+  'Yaratishda ham: dekanat fakultetsiz → 400',
+  createDeanNoScope.status === 400 && hasCode(createDeanNoScope, 'scope_faculty_required'),
+  `status ${createDeanNoScope.status}`,
+);
+
+const deanWithFaculty = facultyAniq
+  ? await assignRole({ roleCode: 'DEANERY', scopeFacultyId: facultyAniq.id })
+  : { ok: false, status: 0 };
+check(
+  'Dekanat FAK-ANIQ doirasi bilan berildi',
+  deanWithFaculty.ok,
+  `status ${deanWithFaculty.status}`,
+);
+
+const headMismatch =
+  departmentPed && facultyAniq
+    ? await assignRole({
+        roleCode: 'DEPARTMENT_HEAD',
+        scopeDepartmentId: departmentPed.id,
+        scopeFacultyId: facultyAniq.id,
+      })
+    : { status: 0 };
+check(
+  'Kafedra boshqa fakultetga tegishli → 400 validation.department_not_in_faculty',
+  headMismatch.status === 400 && hasCode(headMismatch, 'department_not_in_faculty'),
+  `status ${headMismatch.status}`,
+);
+const headWithDepartment = departmentPed
+  ? await assignRole({ roleCode: 'DEPARTMENT_HEAD', scopeDepartmentId: departmentPed.id })
+  : { ok: false, status: 0 };
+check(
+  'Kafedra mudiri KAF doirasi bilan berildi',
+  headWithDepartment.ok,
+  `status ${headWithDepartment.status}`,
+);
+const ghostFaculty = await assignRole({
+  roleCode: 'METHODIST',
+  scopeFacultyId: '00000000-0000-4000-8000-000000000000',
+});
+check(
+  'Mavjud bo`lmagan fakultet → 404',
+  ghostFaculty.status === 404,
+  `status ${ghostFaculty.status}`,
+);
+
+const scopeDetail = scopeUserId ? await admin(`/users/${scopeUserId}`) : { ok: false, body: null };
+const detailRoles = scopeDetail.body?.data?.roles ?? [];
+const deanRow = detailRoles.find((row) => row.code === 'DEANERY');
+const headRow = detailRoles.find((row) => row.code === 'DEPARTMENT_HEAD');
+check(
+  'Foydalanuvchi kartasida rollar doirasi bilan: dekanat → FAK-ANIQ',
+  scopeDetail.ok && deanRow?.faculty?.id === facultyAniq?.id,
+  `faculty ${deanRow?.faculty?.id ?? '-'}`,
+);
+check(
+  'Kafedra mudiri: fakultet kafedradan avtomatik chiqarildi (FAK-PED)',
+  headRow?.department?.id === departmentPed?.id && headRow?.faculty?.id === facultyPed?.id,
+  `department ${headRow?.department?.id ?? '-'}, faculty ${headRow?.faculty?.id ?? '-'}`,
+);
+
+// Yangi dekan ruxsatlari darhol amal qiladi: o'z fakulteti arizalarini ko'radi
+const newDeanLogin = await loginFull(scopeEmail, SCOPE_PASSWORD).catch((error) => ({
+  token: null,
+  error,
+}));
+const newDean = newDeanLogin.token ? client(newDeanLogin.token) : null;
+const newDeanRequests = newDean
+  ? await newDean('/student-requests?status=PENDING')
+  : { ok: false, status: 0 };
+check(
+  'Yangi dekan darhol dekanat imkoniyatlariga ega (arizalar ro`yxati 200)',
+  newDeanRequests.ok,
+  `status ${newDeanRequests.status}`,
+);
+
+const revokeDean = scopeUserId
+  ? await admin(`/users/${scopeUserId}/roles/revoke`, {
+      method: 'POST',
+      body: JSON.stringify({ roleCode: 'DEANERY' }),
+    })
+  : { ok: false, status: 0, body: null };
+const afterRevoke = scopeUserId ? await admin(`/users/${scopeUserId}`) : { body: null };
+check(
+  'Dekanat roli bekor qilindi va kartadan yo`qoldi',
+  revokeDean.ok && !(afterRevoke.body?.data?.roles ?? []).some((row) => row.code === 'DEANERY'),
+  `status ${revokeDean.status}, revoked ${revokeDean.body?.data?.revoked ?? '-'}`,
+);
+if (scopeUserId) {
+  await admin(`/users/${scopeUserId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'BLOCKED', reason: 'check-gaps sinov foydalanuvchisi' }),
+  });
+}
 
 mockServer.close();
 
