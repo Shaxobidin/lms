@@ -35,6 +35,7 @@ export * from './schemas/attendance';
 export * from './schemas/communication';
 export * from './schemas/document';
 export * from './schemas/lti';
+export * from './schemas/student';
 
 // Sayt boshqaruvi (Moodle uslubidagi sozlamalar daraxti)
 export * from './admin/site-settings';

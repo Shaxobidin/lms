@@ -35,6 +35,12 @@ import {
   Video,
   X,
   SlidersHorizontal,
+  ListChecks,
+  RotateCcw,
+  Route,
+  IdCard,
+  MessageSquareText,
+  LifeBuoy,
 } from 'lucide-react';
 import type { PermissionKey } from '@lms/shared';
 import {
@@ -62,6 +68,8 @@ interface NavItem {
   always?: boolean;
   /** Sayt boshqaruvidagi ochiq modul kaliti `false` bo'lsa band yashirinadi (F-17). */
   settingKey?: string;
+  /** Faqat shu rollardan biriga ega foydalanuvchiga ko'rsatiladi (HEMIS "Talaba" bo'limi). */
+  roles?: string[];
 }
 
 const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
@@ -87,6 +95,53 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
         ],
       },
       { href: '/schedule', labelKey: 'nav.schedule', icon: CalendarDays, always: true },
+    ],
+  },
+  {
+    // HEMIS uslubidagi "Talaba" bo'limi — faqat talabalarga
+    titleKey: 'nav.student',
+    items: [
+      {
+        href: '/student/electives',
+        labelKey: 'nav.studentElectives',
+        icon: ListChecks,
+        roles: ['STUDENT'],
+      },
+      { href: '/my-courses', labelKey: 'nav.studentSubjects', icon: BookOpen, roles: ['STUDENT'] },
+      { href: '/schedule', labelKey: 'nav.schedule', icon: CalendarDays, roles: ['STUDENT'] },
+      {
+        href: '/assignments',
+        labelKey: 'nav.studentTasks',
+        icon: ClipboardList,
+        roles: ['STUDENT'],
+      },
+      {
+        href: '/student/retakes',
+        labelKey: 'nav.studentRetakes',
+        icon: RotateCcw,
+        roles: ['STUDENT'],
+      },
+      {
+        href: '/student/finals',
+        labelKey: 'nav.studentFinals',
+        icon: GraduationCap,
+        roles: ['STUDENT'],
+      },
+      { href: '/student/plan', labelKey: 'nav.studentPlan', icon: Route, roles: ['STUDENT'] },
+      { href: '/student/info', labelKey: 'nav.studentInfo', icon: IdCard, roles: ['STUDENT'] },
+      {
+        href: '/student/surveys',
+        labelKey: 'nav.studentSurveys',
+        icon: MessageSquareText,
+        roles: ['STUDENT'],
+        settingKey: 'feedback.enabled',
+      },
+      {
+        href: '/student/services',
+        labelKey: 'nav.studentServices',
+        icon: LifeBuoy,
+        roles: ['STUDENT'],
+      },
     ],
   },
   {
@@ -226,6 +281,22 @@ const NAV_GROUPS: Array<{ titleKey: string; items: NavItem[] }> = [
         permissions: ['system:read:all', 'system:manage:all'],
       },
       {
+        href: '/admin/student-requests',
+        labelKey: 'nav.studentRequests',
+        icon: LifeBuoy,
+        permissions: [
+          'studentrequest:manage:all',
+          'studentrequest:manage:own_faculty',
+          'studentrequest:read:own_group',
+        ],
+      },
+      {
+        href: '/admin/surveys',
+        labelKey: 'nav.surveys',
+        icon: MessageSquareText,
+        permissions: ['survey:manage:all', 'survey:manage:own_faculty'],
+      },
+      {
         href: '/admin/site',
         labelKey: 'nav.siteAdmin',
         icon: SlidersHorizontal,
@@ -279,7 +350,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ...group,
       items: group.items.filter(
         (item) =>
-          (item.always || (item.permissions ?? []).some((permission) => can(permission))) &&
+          (item.always ||
+            (item.permissions ?? []).some((permission) => can(permission)) ||
+            (item.roles ?? []).some((role) => user?.roles.includes(role as never))) &&
           (!item.settingKey || siteSettings.enabled(item.settingKey)),
       ),
     })).filter((group) => group.items.length > 0);

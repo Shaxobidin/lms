@@ -65,6 +65,19 @@ IPv4 CIDR (`10.0.0.0/8`). Taqiq ro'yxati har doim ustun; ruxsat ro'yxati
 bo'sh bo'lsa hamma kiradi. O'zingizni bloklab qo'ymaslik uchun avval ruxsat
 ro'yxatiga o'z IP'ingizni qo'shing.
 
+## 1b. Talaba arizalari va so'rovnomalar
+
+- `Sozlamalar → Talaba arizalari` (`/admin/student-requests`): dekanat (o'z
+  fakulteti), kurator (o'z guruhi, faqat ko'rish) va administratorlar
+  arizalarni ko'radi. "Ko'rib chiqishga olish" → "Tasdiqlash" / "Rad etish" →
+  "Bajarildi". Izoh talabaga bildirishnoma bilan boradi. **Ma'lumotnoma** va
+  **Transkript** arizasi tasdiqlanganda hujjat avtomatik generatsiya qilinadi
+  (F-14) va talabaning "Ma'lumot" bo'limida ko'rinadi.
+- `Sozlamalar → So'rovnomalar` (`/admin/surveys`): so'rovnoma yaratish (savollar
+  qatorma-qator: `matn | SCALE`, `matn | CHOICE | a; b`, `matn | TEXT`), nashr
+  qilish/yopish, natijalar (o'rtacha, taqsimot, matnlar). Anonim so'rovnomada
+  javob beruvchi saqlanmaydi, takror javob esa oldini olinadi.
+
 ## 2. Tashkiliy tuzilma
 
 **Tuzilma** bo'limi iyerarxiyani boshqaradi:

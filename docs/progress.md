@@ -27,15 +27,15 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 
 | Ko'rsatkich                          | Qiymat                                                               | Talab             |
 | ------------------------------------ | -------------------------------------------------------------------- | ----------------- |
-| Unit testlar (shared)                | 81 ✅                                                                | —                 |
-| Unit/integratsion testlar (API)      | 179 ✅                                                               | —                 |
+| Unit testlar (shared)                | 85 ✅                                                                | —                 |
+| Unit/integratsion testlar (API)      | 184 ✅                                                               | —                 |
 | Unit testlar (web)                   | 25 ✅                                                                | —                 |
 | Qamrov (statements)                  | **85.55%**                                                           | ≥ 70%             |
 | Qamrov (functions / lines)           | 87.27% / 86.74%                                                      | ≥ 70%             |
-| E2E testlar (Playwright)             | **108** ✅ (9 spec; 1 tasi loyihalangan holatda o'tkazib yuboriladi) | —                 |
+| E2E testlar (Playwright)             | **110** ✅ (9 spec; 1 tasi loyihalangan holatda o'tkazib yuboriladi) | —                 |
 | Smoke tekshiruvlari                  | **35/35** ✅                                                         | —                 |
-| i18n to'liqligi                      | 4 til × 1 270 kalit = **5 080** qiymat                               | 0 ta yetishmovchi |
-| OpenAPI                              | 184 yo'l, 217 operatsiya                                             | 3.1               |
+| i18n to'liqligi                      | 4 til × 1 435 kalit = **5 740** qiymat                               | 0 ta yetishmovchi |
+| OpenAPI                              | 198 yo'l, 234 operatsiya                                             | 3.1               |
 | Lighthouse Performance (ochiq)       | **100**                                                              | ≥ 85              |
 | Lighthouse Accessibility (ochiq)     | **100**                                                              | ≥ 95              |
 | Lighthouse Best Practices            | **100**                                                              | —                 |
@@ -47,7 +47,7 @@ ko'rsatkichlar va keyingi qadamlar. Sana: **2026-09-04**.
 | Hujjat oqimi tekshiruvi              | **13/13** ✅                                                         | —                 |
 | Navbat oqimi tekshiruvi              | **8/8** ✅                                                           | —                 |
 | Kurs konstruktori tekshiruvi         | **37/37** ✅                                                         | —                 |
-| Uzilishlar tekshiruvi (`check:gaps`) | **179/179** ✅ (§3b–§3o)                                             | —                 |
+| Uzilishlar tekshiruvi (`check:gaps`) | **203/203** ✅ (§3b–§3p)                                             | —                 |
 | API p95 (60 VU, 1 instansiya)        | **258 ms**                                                           | < 300 ms (NF-01)  |
 | Tezlik (60 VU, 1 instansiya)         | **319 RPS**                                                          | —                 |
 | Gorizontal masshtablanish            | 1→2 instansiya: 258 → **344 RPS**                                    | §5 (stateless)    |
@@ -752,6 +752,38 @@ verify` ✅ (jest 179, vitest 85+25, i18n 4 × 1270), OpenAPI 184 yo'l / 217 op.
 
 Hali faqat saqlanadigan (qo'llaydigan modul yo'q): HTTP himoyasi (Nginx),
 ruxsatnoma, kompetensiya, to'lov provayderlari ro'yxati, H5P tur cheklovi.
+
+## 3p. HEMIS uslubidagi "Talaba" bo'limi (2026-09-07)
+
+Foydalanuvchi HEMIS talaba menyusini (Fan tanlov, Mening fanlarim, Dars
+jadvali, Vazifalar, Qayta o'qish, Yakuniy, Individual shaxsiy reja, Ma'lumot,
+So'rovnoma, Talaba xizmatlari) so'radi. Talqin: talaba uchun xuddi shu
+tuzilmadagi menyu guruhi, har bir band haqiqiy ma'lumot/xizmatga bog'langan.
+
+| Qism                | Nima qilindi                                                                                                                                                                                                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ma'lumotlar modeli  | `StudentRequest` (6 tur, 5 holat, hujjatga bog'lanish), `Survey` (savollar JSON, auditoriya, anonimlik), `SurveyResponse` (`respondentKey` bilan takrorsiz); migratsiya `20260907000000_student_portal`                                                                                 |
+| Seed                | 22 ta tasdiqlangan o'quv reja (mutaxassislik × qabul yili, semestrlar, tanlov fanlari), 1 nashr etilgan so'rovnoma; akademik kalendar seed'i idempotent                                                                                                                                 |
+| Ruxsatlar           | resurslar `studentrequest`, `survey`; STUDENT: `curriculum:read:own`, `studentrequest:create/read:own`, `survey:read:own`; DEANERY `manage:own_faculty`, TUTOR `read:own_group`, admin `manage:all`; scope resolverlar                                                                  |
+| API `StudentModule` | `/student/plan`, `/electives` (+ yozilish/chiqish), `/retakes`, `/finals`, `/info`, `/requests`, `/surveys/:id/responses`; xodimlar: `/student-requests` (doira bo'yicha), `PATCH` (tasdiqlashda ma'lumotnoma/transkript hujjati avtomatik, bildirishnoma), `/surveys` CRUD + `results` |
+| Web                 | "Talaba" menyu guruhi (rol bo'yicha), 7 sahifa (`/student/*`), xodimlar: `/admin/student-requests`, `/admin/surveys`; i18n `student.*` 4 tilda                                                                                                                                          |
+
+Tekshiruv: `check:gaps` 14-bo'lim — 19 ta (reja, 403, fan tanlov yozilish/
+chiqish/422, qayta o'qish, yakuniy, ma'lumot, ariza → takror 422 → dekanat
+ko'radi → tasdiqlaydi → hujjat → talaba ko'radi, so'rovnoma yaratish → javob →
+takror 422 → agregat natija), e2e 2 ta (menyu + reja, ariza yuborish).
+
+Natija: `check:gaps` **203/203**, e2e 110 (2 yangi ✅), `npm run verify` ✅ (jest
+184, vitest 85+25, i18n 4 × 1435), OpenAPI 198 yo'l / 234 op.
+
+Topilmalar: (1) 7-bo'lim demo talabani sinov guruhiga o'tkazib qo'yardi
+(o'quv rejasiz mutaxassislik) — `context()` endi tasdiqlangan o'quv rejasi bor
+guruhni afzal ko'radi, tekshiruv esa talabani seed guruhiga qaytaradi; (2)
+kurssiz so'rovnoma uchun `own_faculty` doirasi ishlamasdi — `Survey.facultyId`
+(muallif fakulteti) qo'shildi; (3) o'quv yili nomi tasodifiy juftlikdan
+to'qnashardi — mavjudlar bilan solishtirib tanlanadi; (4) host'da qolib ketgan
+`apps/api/dist` jarayoni Prisma dvigatelini qulflab `prisma generate` ni
+buzardi (EPERM) — to'xtatildi.
 
 ### Yopilmagan holicha qolgan uzilishlar
 

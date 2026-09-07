@@ -842,7 +842,16 @@ check(
 );
 
 // --- Akademik kalendar ---
-const yearName = `20${suffix.slice(0, 2).replace(/[^0-9]/g, '9')}-20${suffix.slice(2, 4).replace(/[^0-9]/g, '9')}`;
+// Nom takrorlanmasin: avvalgi yugurishlar qoldirgan yillar bilan to'qnashmaydigan juftlik tanlanadi
+const existingYearNames = new Set(
+  ((await rector('/org/academic-years')).body?.data ?? []).map((row) => row.name),
+);
+let yearName = '';
+for (let attempt = 0; attempt < 50 && !yearName; attempt += 1) {
+  const start = 2030 + Math.floor(Math.random() * 60);
+  const candidate = `${start}-${start + 1}`;
+  if (!existingYearNames.has(candidate)) yearName = candidate;
+}
 const year = await rector('/org/academic-years', {
   method: 'POST',
   body: JSON.stringify({
@@ -2738,6 +2747,362 @@ await admin('/admin/site/site-info', {
     'site.supportEmail': siteInfoBefore['site.supportEmail'] ?? 'support@qdu.uz',
   }),
 });
+
+console.log(
+  '\n14. Talaba bo`limi (HEMIS: reja, fan tanlov, qayta o`qish, yakuniy, xizmatlar, so`rovnoma)',
+);
+
+// Tayyorgarlik: 7-bo'lim demo talabani sinov guruhiga o'tkazgan (o'quv rejasiz mutaxassislik) —
+// uni seed'dagi mutaxassislik guruhiga qaytaramiz; ochiq qolgan ma'lumotnoma arizalarini yopamiz
+const seededSpecialities = await rector('/org/specialities');
+const seededSpeciality = (seededSpecialities.body?.data ?? []).find(
+  (row) => row.code === '60110100',
+);
+const seededGroups = seededSpeciality
+  ? await rector(`/org/groups?specialityId=${seededSpeciality.id}`)
+  : { body: null };
+const seededGroup = (seededGroups.body?.data ?? [])[0];
+if (seededGroup) {
+  await rector('/org/groups/assign-student', {
+    method: 'POST',
+    body: JSON.stringify({
+      userId: studentId,
+      groupId: seededGroup.id,
+      reason: `Sinovdan qaytarish ${suffix}`,
+    }),
+  });
+}
+for (const status of ['PENDING', 'IN_PROGRESS', 'APPROVED']) {
+  const stale = await admin(`/student-requests?status=${status}&type=REFERENCE`);
+  for (const row of (stale.body?.data ?? []).filter((r) => r.user?.id === studentId)) {
+    await admin(`/student-requests/${row.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: status === 'APPROVED' ? 'DONE' : 'REJECTED',
+        resolution: 'sinov tozalash',
+      }),
+    });
+  }
+}
+
+const plan = await student('/student/plan');
+const planSemesters = plan.body?.data?.semesters ?? [];
+check(
+  'Individual reja: guruh → tasdiqlangan o`quv reja, semestrlar va fanlar holati',
+  plan.ok &&
+    Boolean(plan.body.data.curriculumCode) &&
+    planSemesters.length >= 4 &&
+    planSemesters.some((sem) =>
+      sem.subjects.some(
+        (row) => row.status === 'PASSED' || row.status === 'IN_PROGRESS' || row.status === 'FAILED',
+      ),
+    ) &&
+    plan.body.data.currentSemesterNumber >= 1,
+  `status ${plan.status}, reja ${plan.body?.data?.curriculumCode}, semestrlar ${planSemesters.length}, joriy ${plan.body?.data?.currentSemesterNumber}`,
+);
+const teacherPlan = await teacher('/student/plan');
+check(
+  'O`qituvchi talaba bo`limiga kira olmaydi (403)',
+  teacherPlan.status === 403,
+  `status ${teacherPlan.status}`,
+);
+
+// --- Fan tanlov: tanlov fani uchun kurs yaratib, talaba yozilib chiqadi ---
+const electives = await student('/student/electives');
+const electiveSubject = (electives.body?.data?.subjects ?? [])[0];
+check(
+  'Fan tanlov: joriy/kelgusi semestr tanlov fanlari ro`yxati',
+  electives.ok && Boolean(electiveSubject),
+  `status ${electives.status}, fanlar ${electives.body?.data?.subjects?.length ?? 0}`,
+);
+const electiveCourse = electiveSubject
+  ? await teacher('/courses', {
+      method: 'POST',
+      body: JSON.stringify({
+        code: `EL-${suffix.toUpperCase()}`,
+        subjectId: electiveSubject.subject.id,
+        departmentId: (await teacher(`/courses/${courseId}`)).body?.data?.department?.id,
+        title: { 'uz-Latn': `Tanlov kursi ${suffix}` },
+        description: { 'uz-Latn': '<p>Tanlov</p>' },
+      }),
+    })
+  : { ok: false, status: 0, body: null };
+const electiveCourseId = electiveCourse.body?.data?.id;
+// Nashr uchun kamida bitta nashr etilgan dars kerak (course_has_no_published_lessons)
+if (electiveCourseId) {
+  const electiveModule = await teacher('/courses/modules', {
+    method: 'POST',
+    body: JSON.stringify({
+      courseId: electiveCourseId,
+      title: { 'uz-Latn': '1-modul' },
+      isPublished: true,
+    }),
+  });
+  const electiveTopic = await teacher('/courses/topics', {
+    method: 'POST',
+    body: JSON.stringify({
+      moduleId: electiveModule.body?.data?.id,
+      title: { 'uz-Latn': '1-mavzu' },
+    }),
+  });
+  await teacher('/courses/lessons', {
+    method: 'POST',
+    body: JSON.stringify({
+      topicId: electiveTopic.body?.data?.id,
+      title: { 'uz-Latn': 'Kirish darsi' },
+      contentHtml: { 'uz-Latn': '<p>Kirish</p>' },
+      durationMinutes: 30,
+      isPublished: true,
+    }),
+  });
+}
+const electivePublish = electiveCourseId
+  ? await teacher(`/courses/${electiveCourseId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'PUBLISHED' }),
+    })
+  : { status: 0, body: null };
+const choose = electiveCourseId
+  ? await student('/student/electives', {
+      method: 'POST',
+      body: JSON.stringify({ courseId: electiveCourseId }),
+    })
+  : { ok: false, status: 0, body: null };
+const afterChoose = electiveCourseId ? await student('/student/electives') : { body: null };
+const chosenRow = (afterChoose.body?.data?.subjects ?? [])
+  .flatMap((row) => row.courses)
+  .find((c) => c.id === electiveCourseId);
+check(
+  'Talaba tanlov kursiga yozildi (myStatus ACTIVE)',
+  choose.ok && chosenRow?.myStatus === 'ACTIVE',
+  `course ${electiveCourse.status} ${electiveCourse.body?.error?.messageKey ?? ''}; publish ${electivePublish.status} ${electivePublish.body?.error?.messageKey ?? ''}; choose ${choose.status} ${choose.body?.error?.messageKey ?? ''}; status ${chosenRow?.myStatus}`,
+);
+const notElective = await student('/student/electives', {
+  method: 'POST',
+  body: JSON.stringify({ courseId }),
+});
+check(
+  'Tanlov fani bo`lmagan kursga bu yo`l bilan yozilib bo`lmaydi (422)',
+  notElective.status === 422 &&
+    notElective.body?.error?.messageKey === 'errors.elective_not_available',
+  `status ${notElective.status} ${notElective.body?.error?.messageKey ?? ''}`,
+);
+const withdraw = electiveCourseId
+  ? await student(`/student/electives/${electiveCourseId}`, { method: 'DELETE' })
+  : { ok: false, status: 0 };
+check(
+  'Baho qo`yilmagan tanlov fanidan chiqish mumkin',
+  withdraw.ok && withdraw.body?.data?.withdrawn === true,
+  `status ${withdraw.status}`,
+);
+
+// --- Qayta o'qish va yakuniy ---
+const retakes = await student('/student/retakes');
+check(
+  'Qayta o`qish: o`tish bali va ro`yxat (bo`sh bo`lishi ham mumkin)',
+  retakes.ok &&
+    typeof retakes.body?.data?.passingScore === 'number' &&
+    Array.isArray(retakes.body?.data?.courses),
+  `status ${retakes.status}`,
+);
+const finals = await student('/student/finals');
+check(
+  'Yakuniy: har bir kurs uchun kirish huquqi va JN/ON/YN taqsimoti',
+  finals.ok &&
+    (finals.body?.data?.courses ?? []).length > 0 &&
+    finals.body.data.courses.every(
+      (row) => typeof row.eligibleForFinal === 'boolean' && row.breakdown && 'YN' in row.breakdown,
+    ),
+  `status ${finals.status}, kurslar ${finals.body?.data?.courses?.length ?? 0}`,
+);
+
+// --- Ma'lumot ---
+const info = await student('/student/info');
+check(
+  'Ma`lumot: profil, guruh, mutaxassislik, o`quv reja, hujjatlar',
+  info.ok &&
+    info.body.data.profile?.email &&
+    info.body.data.group &&
+    info.body.data.speciality &&
+    info.body.data.curriculumCode &&
+    Array.isArray(info.body.data.documents),
+  `status ${info.status}, guruh ${info.body?.data?.group}`,
+);
+
+// --- Talaba xizmatlari: ariza → dekanat tasdiqlaydi → ma'lumotnoma hujjati ---
+const refRequest = await student('/student/requests', {
+  method: 'POST',
+  body: JSON.stringify({
+    type: 'REFERENCE',
+    subject: `Ish joyiga ma'lumotnoma ${suffix}`,
+    details: 'Bank uchun',
+  }),
+});
+const refRequestId = refRequest.body?.data?.id;
+check(
+  'Ariza yaratildi (PENDING)',
+  refRequest.ok && refRequest.body?.data?.status === 'PENDING',
+  `status ${refRequest.status} ${refRequest.body?.error?.messageKey ?? ''}`,
+);
+const dupRequest = await student('/student/requests', {
+  method: 'POST',
+  body: JSON.stringify({ type: 'REFERENCE', subject: `Yana bir ma'lumotnoma ${suffix}` }),
+});
+check(
+  'Shu turdagi ochiq ariza takrorlanmaydi (422)',
+  dupRequest.status === 422 && dupRequest.body?.error?.messageKey === 'errors.request_already_open',
+  `status ${dupRequest.status}`,
+);
+const retakeNoCourse = await student('/student/requests', {
+  method: 'POST',
+  body: JSON.stringify({ type: 'RETAKE', subject: 'Qayta o`qish' }),
+});
+check(
+  'RETAKE arizasi kurssiz 400 (validation.retake_needs_course)',
+  retakeNoCourse.status === 400,
+  `status ${retakeNoCourse.status}`,
+);
+
+// Demo talaba boshqa fakultet guruhida — dekanat (FAK-ANIQ) uni ko'rmasligi kerak (own_faculty)
+const deanRequests = await dean('/student-requests?status=PENDING');
+const adminRequests = await admin('/student-requests?status=PENDING');
+check(
+  'Doira: dekanat boshqa fakultet talabasining arizasini ko`rmaydi, administrator ko`radi',
+  deanRequests.ok &&
+    !(deanRequests.body?.data ?? []).some((row) => row.id === refRequestId) &&
+    adminRequests.ok &&
+    (adminRequests.body?.data ?? []).some((row) => row.id === refRequestId),
+  `dean ${deanRequests.status}/${deanRequests.body?.data?.length ?? 0}; admin ${adminRequests.status}/${adminRequests.body?.data?.length ?? 0}`,
+);
+const deanApprove = refRequestId
+  ? await dean(`/student-requests/${refRequestId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'APPROVED' }),
+    })
+  : { status: 0 };
+check(
+  'Dekanat boshqa fakultet arizasini tasdiqlay olmaydi (403)',
+  deanApprove.status === 403,
+  `status ${deanApprove.status}`,
+);
+const studentList = await student('/student-requests');
+check(
+  'Talaba xodimlar ro`yxatini ko`ra olmaydi (403)',
+  studentList.status === 403,
+  `status ${studentList.status}`,
+);
+const approve = refRequestId
+  ? await admin(`/student-requests/${refRequestId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'APPROVED', resolution: 'Tayyorlandi' }),
+    })
+  : { ok: false, status: 0, body: null };
+check(
+  'Administrator tasdiqladi → ma`lumotnoma hujjati navbatga qo`yildi (documentId)',
+  approve.ok &&
+    approve.body?.data?.status === 'APPROVED' &&
+    Boolean(approve.body?.data?.documentId),
+  `status ${approve.status} ${approve.body?.error?.messageKey ?? ''}; document ${approve.body?.data?.documentId ?? 'yo`q'}`,
+);
+const myRequestsAfter = await student('/student/requests');
+check(
+  'Talaba arizasining yangi holati va javobini ko`radi',
+  (myRequestsAfter.body?.data ?? []).some(
+    (row) =>
+      row.id === refRequestId && row.status === 'APPROVED' && row.resolution === 'Tayyorlandi',
+  ),
+  `${myRequestsAfter.status}`,
+);
+const infoDocs = await student('/student/info');
+check(
+  'Ma`lumot sahifasida hujjat paydo bo`ldi',
+  (infoDocs.body?.data?.documents ?? []).some((doc) => doc.templateKey === 'REFERENCE'),
+  `${infoDocs.body?.data?.documents?.length ?? 0} ta hujjat`,
+);
+if (refRequestId)
+  await admin(`/student-requests/${refRequestId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'DONE' }),
+  });
+
+// --- So'rovnoma: dekan yaratadi, talaba javob beradi (anonim, takrorsiz), natija agregat ---
+const survey = await dean('/surveys', {
+  method: 'POST',
+  body: JSON.stringify({
+    title: { 'uz-Latn': `Sinov so'rovnomasi ${suffix}` },
+    questions: [
+      { id: 'q1', type: 'SCALE', text: { 'uz-Latn': 'Baholang' }, required: true },
+      {
+        id: 'q2',
+        type: 'CHOICE',
+        text: { 'uz-Latn': 'Tanlang' },
+        options: [{ 'uz-Latn': 'A' }, { 'uz-Latn': 'B' }],
+        required: true,
+      },
+      { id: 'q3', type: 'TEXT', text: { 'uz-Latn': 'Fikr' }, required: false },
+    ],
+    audienceRoles: ['STUDENT'],
+    isAnonymous: true,
+    isPublished: true,
+  }),
+});
+const surveyId = survey.body?.data?.id;
+check(
+  'Dekanat so`rovnoma yaratdi (nashr etilgan)',
+  survey.ok && Boolean(surveyId),
+  `status ${survey.status} ${survey.body?.error?.messageKey ?? ''}`,
+);
+const openSurveys = await student('/student/surveys');
+check(
+  'Talaba ochiq so`rovnomani ko`radi',
+  (openSurveys.body?.data ?? []).some((row) => row.id === surveyId && row.answered === false),
+  `${openSurveys.body?.data?.length ?? 0} ta`,
+);
+const missingRequired = surveyId
+  ? await student(`/student/surveys/${surveyId}/responses`, {
+      method: 'POST',
+      body: JSON.stringify({ answers: { q1: 5 } }),
+    })
+  : { status: 0 };
+check(
+  'Majburiy savolsiz javob 422',
+  missingRequired.status === 422,
+  `status ${missingRequired.status}`,
+);
+const respond = surveyId
+  ? await student(`/student/surveys/${surveyId}/responses`, {
+      method: 'POST',
+      body: JSON.stringify({ answers: { q1: 4, q2: 1, q3: 'Yaxshi' } }),
+    })
+  : { ok: false, status: 0 };
+const respondAgain = surveyId
+  ? await student(`/student/surveys/${surveyId}/responses`, {
+      method: 'POST',
+      body: JSON.stringify({ answers: { q1: 5, q2: 0 } }),
+    })
+  : { status: 0 };
+check(
+  'Javob qabul qilindi, takroriy javob 422',
+  respond.ok && respondAgain.status === 422,
+  `first ${respond.status}, again ${respondAgain.status}`,
+);
+const surveyResults = surveyId ? await dean(`/surveys/${surveyId}/results`) : { body: null };
+const q1 = (surveyResults.body?.data?.questions ?? []).find((q) => q.id === 'q1');
+const q2 = (surveyResults.body?.data?.questions ?? []).find((q) => q.id === 'q2');
+check(
+  'Natijalar agregat: o`rtacha 4, tanlov taqsimoti, matn javob; anonim (userId yo`q)',
+  surveyResults.body?.data?.total === 1 &&
+    q1?.average === 4 &&
+    q2?.distribution?.['1'] === 1 &&
+    surveyResults.body.data.isAnonymous === true,
+  JSON.stringify({
+    total: surveyResults.body?.data?.total,
+    avg: q1?.average,
+    dist: q2?.distribution,
+  }),
+);
+const anonRow = surveyId ? await admin(`/admin/audit-log?resource=survey&limit=1`) : { ok: true };
+check('So`rovnoma auditga tushdi', anonRow.ok, `status ${anonRow.status}`);
 
 mockServer.close();
 

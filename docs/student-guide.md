@@ -292,3 +292,20 @@ Ha. Sizga berilgan variant saqlanadi va apellyatsiya paytida qayta tiklanadi.
 
 **Parolimni o'zgartirmoqchiman.**
 Profil → Parolni almashtirish. Yangi parol oxirgi 5 ta paroldan farq qilishi kerak.
+
+## Talaba bo'limi (HEMIS uslubi)
+
+Yon paneldagi **Talaba** guruhi HEMIS'dagi kabi tuzilgan:
+
+| Band                        | Nima qiladi                                                                                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fan tanlov**              | O'quv rejangizdagi joriy/kelgusi semestr tanlov fanlari va ular bo'yicha ochiq kurslar. "Tanlash" — yoziladi, baho qo'yilmaguncha "Bekor qilish" mumkin                                                          |
+| **Mening fanlarim**         | Yozilgan kurslar                                                                                                                                                                                                 |
+| **Dars jadvali**            | Mashg'ulotlar jadvali                                                                                                                                                                                            |
+| **Vazifalar**               | Topshiriqlar                                                                                                                                                                                                     |
+| **Qayta o'qish**            | Yakuniy natijasi o'tish balidan past kurslar; bir tugma bilan qayta o'qishga ariza                                                                                                                               |
+| **Yakuniy**                 | Har kurs bo'yicha JN/ON/YN taqsimoti, yakuniyga kirish huquqi (JN+ON chegarasi), yakuniy imtihonlar va eng yaxshi natija                                                                                         |
+| **Individual shaxsiy reja** | Mutaxassislik o'quv rejasi semestrlar bo'yicha, har fan holati (o'zlashtirildi / o'qilmoqda / kelgusi) va kreditlar progressi                                                                                    |
+| **Ma'lumot**                | Shaxsiy va akademik ma'lumotlar, GPA, sizga tayyorlangan hujjatlar (yuklab olish)                                                                                                                                |
+| **So'rovnoma**              | Ochiq so'rovnomalar; anonim so'rovnomada javob shaxsingizga bog'lanmaydi, har biriga bir marta javob beriladi                                                                                                    |
+| **Talaba xizmatlari**       | Arizalar: ma'lumotnoma, akademik ta'til, qayta o'qish, o'tkazish, transkript. Dekanat ko'rib chiqadi; natija bildirishnoma bilan keladi; tasdiqlangan ma'lumotnoma/transkript "Ma'lumot" bo'limida paydo bo'ladi |

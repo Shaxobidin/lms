@@ -15,6 +15,8 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 /** `deletedAt` ustuni mavjud bo'lgan modellar. */
 const SOFT_DELETE_MODELS = new Set<string>([
+  'StudentRequest',
+  'Survey',
   'User',
   'UserProfile',
   'Role',

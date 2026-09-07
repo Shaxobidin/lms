@@ -55,6 +55,9 @@ export const RESOURCES = [
   'badge',
   'payment',
   'integration',
+  /** HEMIS "Talaba xizmatlari" arizalari va so'rovnomalar (Talaba bo'limi). */
+  'studentrequest',
+  'survey',
 ] as const;
 
 export const ACTIONS = [
@@ -298,6 +301,8 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'course:read:all',
     'grade:read:all',
     'analytics:read:all',
+    'studentrequest:manage:all',
+    'survey:manage:all',
   ],
 
   // R2 — tashkiliy tuzilma, o'quv yili, global sozlamalar
@@ -327,6 +332,8 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'payment:read:all',
     'badge:manage:all',
     'announcement:create:all',
+    'studentrequest:manage:all',
+    'survey:manage:all',
   ],
 
   // R3 — fakultet bo'yicha analitika, tasdiqlash, buyruq
@@ -360,6 +367,8 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'certificate:approve:own_faculty',
     'announcement:create:own_faculty',
     'auditlog:read:own_faculty',
+    'studentrequest:manage:own_faculty',
+    'survey:manage:own_faculty',
   ],
 
   // R4 — kafedra kurslari, yuklama, sillabus tasdig'i
@@ -405,6 +414,7 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'analytics:read:own_faculty',
     'document:create:own_faculty',
     'document:export:own_faculty',
+    'survey:manage:own_faculty',
   ],
 
   // R6 — kurs yaratish, kontent, topshiriq, baholash, davomat
@@ -457,6 +467,7 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'announcement:create:own_group',
     'message:create:own',
     'document:export:own_group',
+    'studentrequest:read:own_group',
   ],
 
   // R8 — kurslar, topshiriq, test, reyting, sertifikat
@@ -488,6 +499,10 @@ export const ROLE_PERMISSION_MATRIX: Record<RoleCode, readonly PermissionKey[]> 
     'payment:create:own',
     'payment:read:own',
     'analytics:read:own',
+    'curriculum:read:own',
+    'studentrequest:create:own',
+    'studentrequest:read:own',
+    'survey:read:own',
   ],
 
   // R9 — faqat o'qish + baholash (vaqtinchalik token bilan)

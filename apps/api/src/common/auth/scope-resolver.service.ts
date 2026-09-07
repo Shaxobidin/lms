@@ -61,6 +61,64 @@ export class ScopeResolverService {
 
     this.register('faculty', async (id) => ({ facultyId: id }));
 
+    // Talaba arizasi: egasi — talaba; guruh/kafedra/fakultet — guruh a'zoligi orqali
+    this.register('studentrequest', async (id) => {
+      const row = await db.studentRequest.findUnique({
+        where: { id },
+        select: {
+          userId: true,
+          user: {
+            select: {
+              studentGroups: {
+                where: { leftAt: null },
+                take: 1,
+                select: {
+                  groupId: true,
+                  group: {
+                    select: {
+                      speciality: {
+                        select: { departmentId: true, department: { select: { facultyId: true } } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!row) return null;
+      const membership = row.user.studentGroups[0];
+      return {
+        ownerId: row.userId,
+        groupId: membership?.groupId ?? null,
+        departmentId: membership?.group.speciality.departmentId ?? null,
+        facultyId: membership?.group.speciality.department.facultyId ?? null,
+      };
+    });
+
+    // So'rovnoma: kursga bog'langan bo'lsa kurs doirasi, aks holda muallif
+    this.register('survey', async (id) => {
+      const row = await db.survey.findUnique({
+        where: { id },
+        select: {
+          createdById: true,
+          courseId: true,
+          facultyId: true,
+          course: {
+            select: { departmentId: true, department: { select: { facultyId: true } } },
+          },
+        },
+      });
+      if (!row) return null;
+      return {
+        ownerId: row.createdById,
+        courseId: row.courseId,
+        departmentId: row.course?.departmentId ?? null,
+        facultyId: row.course?.department.facultyId ?? row.facultyId ?? null,
+      };
+    });
+
     this.register('department', async (id) => {
       const row = await db.department.findUnique({
         where: { id },

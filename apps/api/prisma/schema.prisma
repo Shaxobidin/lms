@@ -54,47 +54,51 @@ model User {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  profile           UserProfile?
-  roles             UserRole[]
-  sessions          Session[]
-  passwordHistory   PasswordHistory[]
-  otpCodes          OtpCode[]
-  auditLogs         AuditLog[]              @relation("AuditActor")
-  enrollments       Enrollment[]
-  taughtCourses     CourseTeacher[]
-  submissions       Submission[]            @relation("SubmissionAuthor")
-  gradedSubmissions Submission[]            @relation("SubmissionGrader")
-  quizAttempts      QuizAttempt[]
-  grades            Grade[]                 @relation("GradeOwner")
-  givenGrades       Grade[]                 @relation("GradeAuthor")
-  attendances       Attendance[]            @relation("AttendanceStudent")
-  markedAttendances Attendance[]            @relation("AttendanceMarker")
-  lessonProgress    LessonProgress[]
-  notifications     Notification[]
-  sentMessages      Message[]               @relation("MessageSender")
-  receivedMessages  Message[]               @relation("MessageRecipient")
-  forumThreads      ForumThread[]
-  forumPosts        ForumPost[]
-  certificates      Certificate[]           @relation("CertificateHolder")
-  uploadedFiles     FileObject[]
-  badges            UserBadge[]
-  xp                UserXp?
-  payments          Payment[]
-  curatedGroups     Group[]                 @relation("GroupCurator")
-  headedDepartments Department[]            @relation("DepartmentHead")
-  deanOfFaculties   Faculty[]               @relation("FacultyDean")
-  studentGroups     GroupMember[]
-  scormTrackings    ScormTracking[]
-  xapiStatements    XapiStatement[]
-  announcements     Announcement[]
-  telegramLink      TelegramLink?
-  notificationPrefs NotificationPreference?
-  excuses           AttendanceExcuse[]      @relation("ExcuseStudent")
-  peerReviews       PeerReview[]
-  generatedDocs     GeneratedDocument[]
-  meetings          Meeting[]
-  transcripts       Transcript[]
-  ltiLinks          LtiUserLink[]
+  profile                UserProfile?
+  roles                  UserRole[]
+  sessions               Session[]
+  passwordHistory        PasswordHistory[]
+  otpCodes               OtpCode[]
+  auditLogs              AuditLog[]              @relation("AuditActor")
+  enrollments            Enrollment[]
+  taughtCourses          CourseTeacher[]
+  submissions            Submission[]            @relation("SubmissionAuthor")
+  gradedSubmissions      Submission[]            @relation("SubmissionGrader")
+  quizAttempts           QuizAttempt[]
+  grades                 Grade[]                 @relation("GradeOwner")
+  givenGrades            Grade[]                 @relation("GradeAuthor")
+  attendances            Attendance[]            @relation("AttendanceStudent")
+  markedAttendances      Attendance[]            @relation("AttendanceMarker")
+  lessonProgress         LessonProgress[]
+  notifications          Notification[]
+  sentMessages           Message[]               @relation("MessageSender")
+  receivedMessages       Message[]               @relation("MessageRecipient")
+  forumThreads           ForumThread[]
+  forumPosts             ForumPost[]
+  certificates           Certificate[]           @relation("CertificateHolder")
+  uploadedFiles          FileObject[]
+  badges                 UserBadge[]
+  xp                     UserXp?
+  payments               Payment[]
+  curatedGroups          Group[]                 @relation("GroupCurator")
+  headedDepartments      Department[]            @relation("DepartmentHead")
+  deanOfFaculties        Faculty[]               @relation("FacultyDean")
+  studentGroups          GroupMember[]
+  scormTrackings         ScormTracking[]
+  xapiStatements         XapiStatement[]
+  announcements          Announcement[]
+  telegramLink           TelegramLink?
+  notificationPrefs      NotificationPreference?
+  excuses                AttendanceExcuse[]      @relation("ExcuseStudent")
+  peerReviews            PeerReview[]
+  generatedDocs          GeneratedDocument[]
+  meetings               Meeting[]
+  transcripts            Transcript[]
+  ltiLinks               LtiUserLink[]
+  studentRequests        StudentRequest[]        @relation("StudentRequestOwner")
+  handledStudentRequests StudentRequest[]        @relation("StudentRequestHandler")
+  surveys                Survey[]
+  surveyResponses        SurveyResponse[]
 
   @@index([status, deletedAt])
   @@index([searchText])
@@ -663,6 +667,8 @@ model Course {
   certificates     Certificate[]
   scormPackages    ScormPackage[]
   ltiResourceLinks LtiResourceLink[]
+  studentRequests  StudentRequest[]
+  surveys          Survey[]
   meetings         Meeting[]
   payments         Payment[]
   badges           UserBadge[]
@@ -1930,8 +1936,9 @@ model GeneratedDocument {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  file      FileObject? @relation(fields: [fileObjectId], references: [id])
-  createdBy User        @relation(fields: [createdById], references: [id])
+  file            FileObject?      @relation(fields: [fileObjectId], references: [id])
+  createdBy       User             @relation(fields: [createdById], references: [id])
+  studentRequests StudentRequest[]
 
   @@index([templateKey, createdAt])
   @@index([createdById])
@@ -2102,4 +2109,101 @@ model IntegrationSyncLog {
 
   @@index([provider, entity, startedAt])
   @@map("integration_sync_logs")
+}
+
+/// HEMIS "Talaba xizmatlari": ma'lumotnoma, akademik ta'til, qayta o'qish,
+/// o'tkazish, transkript so'rovlari (F-14). Dekanat/kurator ko'rib chiqadi.
+enum StudentRequestType {
+  REFERENCE
+  ACADEMIC_LEAVE
+  RETAKE
+  TRANSFER
+  TRANSCRIPT
+  OTHER
+}
+
+enum StudentRequestStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  DONE
+}
+
+model StudentRequest {
+  id          String               @id @default(uuid()) @db.Uuid
+  userId      String               @db.Uuid
+  type        StudentRequestType
+  courseId    String?              @db.Uuid
+  subject     String
+  details     String?
+  payload     Json                 @default("{}")
+  status      StudentRequestStatus @default(PENDING)
+  handledById String?              @db.Uuid
+  resolution  String?
+  /// Tasdiqlangan ma'lumotnoma/transkript uchun generatsiya qilingan hujjat
+  documentId  String?              @db.Uuid
+  handledAt   DateTime?            @db.Timestamptz(3)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  user      User               @relation("StudentRequestOwner", fields: [userId], references: [id])
+  handledBy User?              @relation("StudentRequestHandler", fields: [handledById], references: [id])
+  course    Course?            @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  document  GeneratedDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@map("student_requests")
+}
+
+/// So'rovnoma (HEMIS "So'rovnoma"): savollar JSON, auditoriya rollar/kurs bo'yicha.
+model Survey {
+  id            String    @id @default(uuid()) @db.Uuid
+  title         Json
+  description   Json?
+  questions     Json
+  audienceRoles String[]
+  courseId      String?   @db.Uuid
+  isAnonymous   Boolean   @default(true)
+  opensAt       DateTime? @db.Timestamptz(3)
+  closesAt      DateTime? @db.Timestamptz(3)
+  isPublished   Boolean   @default(false)
+  /// Fakultet doirasi (`own_faculty`): kurssiz so'rovnomalar uchun muallif fakulteti
+  facultyId     String?   @db.Uuid
+  createdById   String    @db.Uuid
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime? @db.Timestamptz(3)
+
+  createdBy User             @relation(fields: [createdById], references: [id])
+  course    Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  responses SurveyResponse[]
+
+  @@index([isPublished, closesAt])
+  @@index([courseId])
+  @@index([facultyId])
+  @@map("surveys")
+}
+
+/// Javob: anonim so'rovnomada `userId` saqlanmaydi, takrorni oldini olish uchun
+/// `respondentKey` (survey+user hash) ishlatiladi.
+model SurveyResponse {
+  id            String  @id @default(uuid()) @db.Uuid
+  surveyId      String  @db.Uuid
+  userId        String? @db.Uuid
+  respondentKey String
+  answers       Json
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([surveyId, respondentKey])
+  @@index([surveyId, createdAt])
+  @@map("survey_responses")
 }

@@ -162,6 +162,25 @@ const TEMPLATES: Record<string, Partial<Record<Locale, TemplateFn>>> = {
     en: () => ({ subject: 'Syllabus submitted', body: 'The syllabus was submitted for approval.' }),
   },
 
+  'notification.student_request': {
+    'uz-Latn': (p) => ({
+      subject: 'Arizangiz ko`rib chiqildi',
+      body: `"${String(p['subject'] ?? '')}" arizangiz holati: ${String(p['status'] ?? '')}. ${String(p['resolution'] ?? '')}`.trim(),
+    }),
+    'uz-Cyrl': (p) => ({
+      subject: 'Аризангиз кўриб чиқилди',
+      body: `"${String(p['subject'] ?? '')}" аризангиз ҳолати: ${String(p['status'] ?? '')}. ${String(p['resolution'] ?? '')}`.trim(),
+    }),
+    ru: (p) => ({
+      subject: 'Ваша заявка рассмотрена',
+      body: `Статус заявки "${String(p['subject'] ?? '')}": ${String(p['status'] ?? '')}. ${String(p['resolution'] ?? '')}`.trim(),
+    }),
+    en: (p) => ({
+      subject: 'Your request has been reviewed',
+      body: `Request "${String(p['subject'] ?? '')}" status: ${String(p['status'] ?? '')}. ${String(p['resolution'] ?? '')}`.trim(),
+    }),
+  },
+
   'notification.report_ready': {
     'uz-Latn': () => ({
       subject: 'Hisobot tayyor',

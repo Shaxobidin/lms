@@ -159,7 +159,10 @@ jobs:
       - run: npm ci
 
       - name: Muhitni tayyorlash
-        run: cp .env.example .env
+        # E2E: har bir test qaytadan kiradi (108 ta × retry) — bitta IP dan login chegarasi 429 berardi
+        run: |
+          cp .env.example .env
+          sed -i 's/^RATE_LIMIT_ENABLED=.*/RATE_LIMIT_ENABLED=false/' .env
 
       - name: Tizimni ko'tarish
         # `minio-init` bir martalik konteyner (exit 0) — `--wait` uni "yiqilgan" deb hisoblaydi,

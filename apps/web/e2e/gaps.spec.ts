@@ -966,6 +966,44 @@ test.describe('Sayt boshqaruvi (Moodle uslubi)', () => {
   });
 });
 
+test.describe('Talaba bo`limi (HEMIS uslubi)', () => {
+  test('menyuda "Talaba" guruhi, reja sahifasi semestrlar bilan ochiladi', async ({ page }) => {
+    await signIn(page, ACCOUNTS.student);
+    await page.goto('/uz-Latn/student/plan');
+    await waitForContent(page);
+    await expect(
+      page.getByRole('heading', { level: 1, name: /individual shaxsiy reja/i }),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+    // Yon panel: HEMIS bandlari
+    const nav = page.getByRole('navigation').first();
+    await expect(nav.getByRole('link', { name: /^fan tanlov$/i })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /^talaba xizmatlari$/i })).toBeVisible();
+    // Semestr kartalari
+    await expect(page.getByText(/1-semestr/i).first()).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('talaba xizmatlari: ariza yuboriladi va ro`yxatda ko`rinadi', async ({ page }) => {
+    await signIn(page, ACCOUNTS.student);
+    const student = await apiAs(ACCOUNTS.student);
+    const subject = `Akademik ta'til ${Date.now().toString(36)}`;
+
+    await page.goto('/uz-Latn/student/services');
+    await waitForContent(page);
+    await page.getByRole('button', { name: /yangi ariza/i }).click();
+    await page.locator('#request-type').selectOption('ACADEMIC_LEAVE');
+    await page.locator('#request-subject').fill(subject);
+    await page.locator('#request-details').fill('Oilaviy sabab');
+    await page.getByRole('button', { name: /^yuborish$/i }).click();
+    await expect(page.getByText(subject)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/kutilmoqda/i).first()).toBeVisible();
+
+    const mine = await student.get<Array<{ subject: string; status: string }>>('/student/requests');
+    expect(mine.some((row) => row.subject === subject && row.status === 'PENDING')).toBe(true);
+  });
+});
+
 test.describe('LTI platformalari', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page, ACCOUNTS.admin);

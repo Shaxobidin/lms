@@ -38,6 +38,7 @@ import { GamificationModule } from './modules/gamification/gamification.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { LtiModule } from './modules/lti/lti.module';
+import { StudentModule } from './modules/student/student.module';
 import { WorkersModule } from './workers/workers.module';
 
 @Module({
@@ -73,6 +74,7 @@ import { WorkersModule } from './workers/workers.module';
     AdminModule,
     IntegrationsModule,
     LtiModule,
+    StudentModule,
 
     // Navbat ishlovchilari (ADR-004)
     WorkersModule,
