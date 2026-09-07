@@ -171,6 +171,7 @@ jobs:
       - name: Migratsiya va seed
         run: |
           npm run build:shared
+          npx prisma generate --schema=apps/api/prisma/schema.prisma
           npm run db:deploy
           npm run db:seed
 
