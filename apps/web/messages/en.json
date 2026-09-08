@@ -552,7 +552,9 @@
     "shapePoly": "Polygon",
     "polyPoints": "Polygon vertices",
     "polyPointsHint": "x,y pairs in percent, separated by semicolons: 10,10; 30,10; 20,30 (at least 3)",
-    "noQuestionsYet": "No questions added yet"
+    "noQuestionsYet": "No questions added yet",
+    "noBankForCourse": "This course has no question bank",
+    "noBankForCourseHint": "Questions live in a bank. Create one, then add a question and attach it to the quiz"
   },
   "grades": {
     "changedFrom": "from {old} to {new}",

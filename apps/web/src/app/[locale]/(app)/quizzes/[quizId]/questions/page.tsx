@@ -96,10 +96,31 @@ export default function QuizQuestionsPage({ params }: { params: Promise<{ quizId
     queryFn: async () => (await api.get<BuilderState>(`/quizzes/${quizId}/questions`)).data,
   });
 
+  const courseId = builder.data?.quiz.courseId ?? '';
+  // Banklar aynan shu kursnikilar bo'lsin: filtrsiz ro'yxatda boshqa kurslarning
+  // banklari chiqib, birinchisi avtomatik tanlanib qolardi (F-07)
   const banks = useQuery({
-    queryKey: ['question-banks', builder.data?.quiz.courseId],
-    queryFn: async () => (await api.get<BankRow[]>('/question-banks')).data,
-    enabled: Boolean(builder.data),
+    queryKey: ['question-banks', courseId],
+    queryFn: async () => (await api.get<BankRow[]>(`/question-banks?courseId=${courseId}`)).data,
+    enabled: courseId !== '',
+  });
+
+  /** Kursda bank bo'lmasa — konstruktordan chiqmasdan yaratiladi. */
+  const createBank = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post<{ id: string }>('/question-banks', {
+          courseId,
+          title: { [locale]: t('quizzes.questionBank') },
+        })
+      ).data,
+    onSuccess: (bank) => {
+      setBankId(bank.id);
+      void banks.refetch();
+      toast.success(t('common.saved'));
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof ApiClientError ? t(error.translationKey) : t('errors.internal')),
   });
 
   const questions = useQuery({
@@ -129,6 +150,8 @@ export default function QuizQuestionsPage({ params }: { params: Promise<{ quizId
     const first = banks.data?.[0];
     if (bankId === '' && first) setBankId(first.id);
   }, [banks.data, bankId]);
+
+  const noBanks = banks.isSuccess && (banks.data?.length ?? 0) === 0;
 
   const selectedIds = useMemo(() => new Set(selected.map((item) => item.questionId)), [selected]);
 
@@ -297,12 +320,24 @@ export default function QuizQuestionsPage({ params }: { params: Promise<{ quizId
           <CardContent className="space-y-2">
             {bankId === '' ? (
               <EmptyState
-                title={t('quizzes.selectBankTitle')}
-                description={t('quizzes.selectBankDescription')}
+                title={noBanks ? t('quizzes.noBankForCourse') : t('quizzes.selectBankTitle')}
+                description={
+                  noBanks ? t('quizzes.noBankForCourseHint') : t('quizzes.selectBankDescription')
+                }
                 action={
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/question-banks">{t('quizzes.questionBank')}</Link>
-                  </Button>
+                  noBanks ? (
+                    <Button
+                      size="sm"
+                      loading={createBank.isPending}
+                      onClick={() => createBank.mutate()}
+                    >
+                      {t('quizzes.createBank')}
+                    </Button>
+                  ) : (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/question-banks">{t('quizzes.questionBank')}</Link>
+                    </Button>
+                  )
                 }
               />
             ) : questions.isLoading ? (
