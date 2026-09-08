@@ -1153,7 +1153,7 @@
     "audio": "Audio",
     "audioHint": "An audio file — for listening exercises",
     "chooserHint": "Pick what you need — the list shows every type the system supports",
-    "chooserTitle": "Add an activity or resource",
+    "chooserTitle": "Choose an element type",
     "coverageNote": "Wiki, glossary, survey and external tool (LTI) are not available yet — they come as separate modules.",
     "embed": "Embedded content",
     "embedHint": "External interactive content (GeoGebra, video player) in an iframe",

@@ -29,6 +29,7 @@ import {
   ListChecks,
   ListPlus,
   Pencil,
+  Paperclip,
   PackageOpen,
   Plus,
   Trash2,
@@ -59,6 +60,7 @@ export interface BuilderLesson {
   position: number;
   durationMinutes: number;
   isPublished: boolean;
+  resources: Array<{ id: string; kind: string; title: unknown }>;
 }
 
 /** Mavzu ichidagi topshiriq — Moodle dagi "Topshiriq" faoliyati. */
@@ -403,6 +405,22 @@ export function CourseBuilder({
                           onEdit={() => openEdit('lesson', lesson)}
                           onDelete={() => setPendingDelete({ kind: 'lesson', id: lesson.id })}
                         />
+
+                        {lesson.resources.length > 0 ? (
+                          <ul className="ml-6 w-full space-y-0.5 border-l border-border pl-3">
+                            {lesson.resources.map((resource) => (
+                              <li
+                                key={resource.id}
+                                data-testid="resource-row"
+                                className="flex items-center gap-2 py-1 text-sm text-muted-foreground"
+                              >
+                                <Paperclip className="size-3.5 shrink-0" aria-hidden="true" />
+                                <span className="truncate">{localize(resource.title, locale)}</span>
+                                <Badge variant="outline">{t('activities.resource')}</Badge>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </li>
                     ))}
 

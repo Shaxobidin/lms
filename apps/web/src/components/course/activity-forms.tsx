@@ -119,11 +119,15 @@ function useCreate(onCreated: () => void, onClose: () => void) {
   };
 }
 
+/** Mavzuda dars bo'lmasa, material shu nomli darsga joylanadi. */
+const MATERIALS_LESSON_TITLE = 'Materiallar';
+
 // --- Resurs -----------------------------------------------------------------
 
 function ResourceForm({
   action,
   courseId,
+  topicId,
   lessonId,
   onClose,
   onCreated,
@@ -143,8 +147,22 @@ function ResourceForm({
 
   const create = useMutation({
     mutationFn: async () => {
+      // Resurs modelda darsga bog'lanadi. Moodle da esa material to'g'ridan-to'g'ri
+      // mavzuda turadi — mavzuda dars bo'lmasa, material uchun konteyner dars
+      // yaratamiz (faqat saqlashda, foydalanuvchi bekor qilsa hech narsa qolmaydi).
+      let targetLessonId = lessonId;
+      if (!targetLessonId && topicId) {
+        const lesson = await api.post<{ id: string }>('/courses/lessons', {
+          topicId,
+          title: { 'uz-Latn': MATERIALS_LESSON_TITLE },
+          durationMinutes: 0,
+          isPublished: true,
+        });
+        targetLessonId = lesson.data.id;
+      }
+
       const body: Record<string, unknown> = {
-        lessonId,
+        lessonId: targetLessonId,
         kind: action.kind,
         title,
         isRequired,
@@ -201,6 +219,7 @@ function ResourceForm({
   });
 
   const ready =
+    Boolean(lessonId || topicId) &&
     Boolean(title['uz-Latn']?.trim()) &&
     (action.source === 'url'
       ? url.startsWith('http')

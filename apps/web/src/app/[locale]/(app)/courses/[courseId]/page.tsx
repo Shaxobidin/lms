@@ -19,6 +19,7 @@ import {
   ClipboardList,
   FileText,
   ListChecks,
+  Paperclip,
   Users,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
@@ -581,6 +582,22 @@ function ModuleAccordion({
                           </span>
                         ) : null}
                       </Link>
+
+                      {lesson.resources.length > 0 ? (
+                        <ul className="ml-6 space-y-0.5 border-l border-border pl-3">
+                          {lesson.resources.map((resource) => (
+                            <li key={resource.id}>
+                              <span className="flex items-center gap-2 px-2 py-1 text-sm text-muted-foreground">
+                                <Paperclip className="size-3.5 shrink-0" aria-hidden="true" />
+                                <span className="truncate">{localize(resource.title, locale)}</span>
+                                <Badge variant="outline" className="shrink-0">
+                                  {t('activities.resource')}
+                                </Badge>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </li>
                   );
                 })}
