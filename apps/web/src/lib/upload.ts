@@ -11,7 +11,56 @@
  * qayerda ko'rinmaydi.
  */
 
+import { ALLOWED_MIME_TYPES } from '@lms/shared';
 import { api } from './api-client';
+
+/**
+ * Kengaytma bo'yicha MIME — brauzerlar bir xil faylni har xil e'lon qiladi.
+ * Windows'dagi Chrome `.zip` uchun `application/x-zip-compressed` yuboradi,
+ * ba'zi hollarda esa `file.type` umuman bo'sh bo'ladi. Server ro'yxati qat'iy
+ * (`ALLOWED_MIME_TYPES`), shuning uchun yuborishdan oldin kanonik turga
+ * keltiramiz. Mazmun baribir serverda magic bytes bilan tekshiriladi.
+ */
+const MIME_BY_EXTENSION: Record<string, string> = {
+  zip: 'application/zip',
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  xml: 'text/xml',
+};
+
+/** Brauzer bergan turni serverning ro'yxatidagi kanonik turga keltiradi. */
+export function normalizeMimeType(file: File, explicit?: string): string {
+  const allowed = ALLOWED_MIME_TYPES as readonly string[];
+  if (explicit) return explicit;
+
+  const reported = (file.type || '').toLowerCase();
+  if (allowed.includes(reported)) return reported;
+
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const byExtension = MIME_BY_EXTENSION[extension];
+  if (byExtension && allowed.includes(byExtension)) return byExtension;
+
+  // Kanonik turga keltira olmadik — server aniq xato qaytarsin
+  return reported || 'application/octet-stream';
+}
 
 export interface PresignResponse {
   fileObjectId: string;
@@ -50,7 +99,7 @@ export async function uploadFile(
 ): Promise<UploadResult> {
   const { data: presigned } = await api.post<PresignResponse>('/content/files/presign', {
     fileName: file.name,
-    mimeType: options.mimeType ?? (file.type || 'application/octet-stream'),
+    mimeType: normalizeMimeType(file, options.mimeType),
     sizeBytes: file.size,
     purpose: options.purpose,
     ...(options.courseId ? { courseId: options.courseId } : {}),
@@ -63,7 +112,7 @@ export async function uploadFile(
   return {
     fileObjectId: presigned.fileObjectId,
     fileName: file.name,
-    mimeType: options.mimeType ?? (file.type || 'application/octet-stream'),
+    mimeType: normalizeMimeType(file, options.mimeType),
     sizeBytes: file.size,
   };
 }

@@ -181,12 +181,25 @@ function ResourceForm({
         const file = picked[0];
         if (!file) throw new Error('file_missing');
         setProgress(0);
+        const isScorm = action.kind === 'SCORM';
         const uploaded = await uploadFile(file, {
-          purpose: 'COURSE_CONTENT',
+          purpose: isScorm ? 'SCORM' : 'COURSE_CONTENT',
           courseId,
           onProgress: (fraction) => setProgress(fraction),
         });
         body['fileObjectId'] = uploaded.fileObjectId;
+
+        // SCORM zip'i shunchaki biriktirilsa ochilmaydi: paket ochib,
+        // manifest o'qilishi kerak — shundagina pleyer ishlaydi va natija
+        // jurnalga tushadi (F-05).
+        if (isScorm) {
+          const imported = await api.post<{ id: string }>('/content/scorm/import', {
+            courseId,
+            fileObjectId: uploaded.fileObjectId,
+            title: title['uz-Latn'] ?? file.name,
+          });
+          body['meta'] = { ...(body['meta'] as object), scormPackageId: imported.data.id };
+        }
       }
 
       if (action.source === 'files') {
