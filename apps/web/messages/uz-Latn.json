@@ -552,7 +552,9 @@
     "shapePoly": "Ko'pburchak",
     "polyPoints": "Ko'pburchak uchlari",
     "polyPointsHint": "x,y juftliklari foizda, nuqta-vergul bilan: 10,10; 30,10; 20,30 (kamida 3 ta)",
-    "noQuestionsYet": "Savollar hali qo'shilmagan"
+    "noQuestionsYet": "Savollar hali qo'shilmagan",
+    "noBankForCourse": "Bu kursda savollar banki yo'q",
+    "noBankForCourseHint": "Savollar bankda saqlanadi. Bank yarating, so'ng savol qo'shib testga biriktiring"
   },
   "grades": {
     "changedFrom": "{old} dan {new} ga",
