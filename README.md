@@ -4,7 +4,7 @@ Qo'qon Davlat Universiteti uchun ishlab chiqilgan to'liq funksional LMS:
 o'quv rejadan tortib diplom/sertifikat berishgacha bo'lgan barcha bosqichlarni
 yagona raqamli platformada birlashtiradi.
 
-**Texnologiyalar:** Next.js 15 · NestJS 10 · PostgreSQL 16 · Prisma 6 · Redis 7 · MinIO · Docker
+**Texnologiyalar:** Next.js 15.5.25 · NestJS 10 · PostgreSQL 16 · Prisma 6 · Redis 7 · MinIO · Docker
 
 ---
 
@@ -104,7 +104,7 @@ qdu-lms/
 │   │       ├── config/         # muhit o'zgaruvchilari validatsiyasi
 │   │       ├── modules/        # domen modullari (F-01 ... F-17)
 │   │       └── workers/        # BullMQ ishlovchilari
-│   └── web/                    # Next.js 15 frontend
+│   └── web/                    # Next.js 15.5.25 frontend
 │       ├── messages/           # 4 tildagi kataloglar
 │       ├── e2e/                # Playwright testlari
 │       └── src/

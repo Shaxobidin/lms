@@ -68,14 +68,14 @@ graph TB
 
 ```mermaid
 graph TB
-    Browser["Brauzer / PWA<br/>[Next.js 15 App Router]"]
+    Browser["Brauzer / PWA<br/>[Next.js 15.5.25 App Router]"]
 
     subgraph Edge
         NGINX["Nginx<br/>reverse proxy, TLS,<br/>rate limit, statik"]
     end
 
     subgraph Ilova qatlami
-        WEB["apps/web<br/>[Next.js 15 + React 19]<br/>SSR, RSC, i18n"]
+        WEB["apps/web<br/>[Next.js 15.5.25 + React 19]<br/>SSR, RSC, i18n"]
         API["apps/api<br/>[NestJS 10 / Node 20]<br/>REST /api/v1"]
         WORKER["apps/api (worker rejim)<br/>[BullMQ processors]<br/>email, video, hisobot"]
     end
