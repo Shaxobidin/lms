@@ -205,6 +205,22 @@ export class CoursesService {
                     _count: { select: { questions: true } },
                   },
                 },
+                forumThreads: {
+                  where: { deletedAt: null },
+                  orderBy: { createdAt: 'asc' },
+                  select: { id: true, title: true, isQuestion: true, postCount: true },
+                },
+                meetings: {
+                  where: { deletedAt: null },
+                  orderBy: { startsAt: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    startsAt: true,
+                    durationMinutes: true,
+                    joinUrl: true,
+                  },
+                },
                 lessons: {
                   where: isTeacher ? {} : { isPublished: true },
                   orderBy: { position: 'asc' },

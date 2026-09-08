@@ -730,10 +730,12 @@ model Topic {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  module      Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  lessons     Lesson[]
-  assignments Assignment[]
-  quizzes     Quiz[]
+  module       Module        @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lessons      Lesson[]
+  assignments  Assignment[]
+  quizzes      Quiz[]
+  forumThreads ForumThread[]
+  meetings     Meeting[]
 
   @@index([moduleId, position])
   @@map("topics")
@@ -1694,6 +1696,8 @@ model Announcement {
 model ForumThread {
   id         String    @id @default(uuid()) @db.Uuid
   courseId   String    @db.Uuid
+  /// Moodle uslubi: mavzu (topic) ichidagi forum elementi
+  topicId    String?   @db.Uuid
   authorId   String    @db.Uuid
   title      String
   isQuestion Boolean   @default(false)
@@ -1708,10 +1712,12 @@ model ForumThread {
   deletedAt DateTime? @db.Timestamptz(3)
 
   course Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic  Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
   author User        @relation(fields: [authorId], references: [id])
   posts  ForumPost[]
 
   @@index([courseId, isPinned, lastPostAt])
+  @@index([topicId])
   @@map("forum_threads")
 }
 
@@ -1825,6 +1831,8 @@ model TelegramLink {
 model Meeting {
   id                String    @id @default(uuid()) @db.Uuid
   courseId          String    @db.Uuid
+  /// Moodle uslubi: mavzu (topic) ichidagi onlayn dars elementi
+  topicId           String?   @db.Uuid
   classSessionId    String?   @unique @db.Uuid
   createdById       String    @db.Uuid
   provider          String
@@ -1844,6 +1852,7 @@ model Meeting {
   deletedAt DateTime? @db.Timestamptz(3)
 
   course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topic        Topic?        @relation(fields: [topicId], references: [id], onDelete: SetNull)
   classSession ClassSession? @relation(fields: [classSessionId], references: [id])
   createdBy    User          @relation(fields: [createdById], references: [id])
 

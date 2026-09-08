@@ -437,7 +437,7 @@ function QuizForm({ courseId, topicId, onClose, onCreated }: CommonProps) {
 
 // --- Forum -------------------------------------------------------------------
 
-function ForumForm({ courseId, onClose, onCreated }: CommonProps) {
+function ForumForm({ courseId, topicId, onClose, onCreated }: CommonProps) {
   const t = useTranslations();
   const handlers = useCreate(onCreated, onClose);
 
@@ -446,7 +446,8 @@ function ForumForm({ courseId, onClose, onCreated }: CommonProps) {
   const [isQuestion, setIsQuestion] = useState(false);
 
   const create = useMutation({
-    mutationFn: async () => api.post('/forum/threads', { courseId, title, body, isQuestion }),
+    mutationFn: async () =>
+      api.post('/forum/threads', { courseId, topicId: topicId ?? null, title, body, isQuestion }),
     ...handlers,
   });
 
@@ -492,7 +493,7 @@ function ForumForm({ courseId, onClose, onCreated }: CommonProps) {
 
 // --- Onlayn dars -------------------------------------------------------------
 
-function MeetingForm({ courseId, onClose, onCreated }: CommonProps) {
+function MeetingForm({ courseId, topicId, onClose, onCreated }: CommonProps) {
   const t = useTranslations();
   const handlers = useCreate(onCreated, onClose);
 
@@ -505,6 +506,7 @@ function MeetingForm({ courseId, onClose, onCreated }: CommonProps) {
     mutationFn: async () =>
       api.post('/classroom/meetings', {
         courseId,
+        topicId: topicId ?? null,
         title,
         startsAt: new Date(startsAt).toISOString(),
         durationMinutes,

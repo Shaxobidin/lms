@@ -19,8 +19,10 @@ import {
   ClipboardList,
   FileText,
   ListChecks,
+  MessageSquare,
   Paperclip,
   Users,
+  Video,
 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { usePublicSettings } from '@/lib/public-settings';
@@ -43,13 +45,15 @@ import {
   Skeleton,
 } from '@/components/ui/primitives';
 
+import type { LessonResource } from '@/components/course/resource-manager';
+
 interface LessonNode {
   id: string;
   title: unknown;
   position: number;
   durationMinutes: number;
   isPublished: boolean;
-  resources: Array<{ id: string; kind: string; title: unknown }>;
+  resources: LessonResource[];
   progress?: Array<{ state: string; secondsSpent: number }>;
 }
 
@@ -79,6 +83,14 @@ interface CourseStructure {
       lessons: LessonNode[];
       assignments: TopicAssignment[];
       quizzes: TopicQuiz[];
+      forumThreads: Array<{ id: string; title: string; isQuestion: boolean; postCount: number }>;
+      meetings: Array<{
+        id: string;
+        title: string;
+        startsAt: string;
+        durationMinutes: number;
+        joinUrl: string;
+      }>;
     }>;
   }>;
 }
@@ -645,6 +657,39 @@ function ModuleAccordion({
                           {t('courses.DRAFT')}
                         </Badge>
                       ) : null}
+                    </Link>
+                  </li>
+                ))}
+
+                {topic.forumThreads.map((forum) => (
+                  <li key={forum.id}>
+                    <Link
+                      href={`/courses/${courseId}/forum/${forum.id}` as '/courses'}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                    >
+                      <MessageSquare
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{forum.title}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {t('activities.forum')}
+                      </Badge>
+                    </Link>
+                  </li>
+                ))}
+
+                {topic.meetings.map((meeting) => (
+                  <li key={meeting.id}>
+                    <Link
+                      href="/classroom"
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                    >
+                      <Video className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <span className="truncate">{meeting.title}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {t('activities.meeting')}
+                      </Badge>
                     </Link>
                   </li>
                 ))}

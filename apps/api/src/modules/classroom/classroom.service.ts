@@ -42,6 +42,7 @@ export class ClassroomService {
     const meeting = await this.prisma.db.meeting.create({
       data: {
         courseId: input.courseId,
+        topicId: input.topicId ?? null,
         classSessionId: input.classSessionId ?? null,
         createdById: actor.id,
         provider: this.provider.name,

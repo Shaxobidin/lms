@@ -29,9 +29,11 @@ import {
   ListChecks,
   ListPlus,
   Pencil,
+  MessageSquare,
   Paperclip,
   PackageOpen,
   Plus,
+  Video,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,6 +53,8 @@ import {
 } from '@/components/ui/dialog';
 import { LocalizedField, SwitchField } from '@/components/ui/form-controls';
 import { ActivityChooser, type ChooserAction } from './activity-chooser';
+import { ResourceEditDialog } from './resource-edit-dialog';
+import type { LessonResource } from './resource-manager';
 import { ActivityForm } from './activity-forms';
 import { CartridgeImportDialog } from './cartridge-import-dialog';
 
@@ -60,7 +64,7 @@ export interface BuilderLesson {
   position: number;
   durationMinutes: number;
   isPublished: boolean;
-  resources: Array<{ id: string; kind: string; title: unknown }>;
+  resources: LessonResource[];
 }
 
 /** Mavzu ichidagi topshiriq — Moodle dagi "Topshiriq" faoliyati. */
@@ -78,6 +82,23 @@ export interface BuilderQuiz {
   _count: { questions: number };
 }
 
+/** Mavzu ichidagi forum — Moodle dagi "Forum" faoliyati. */
+export interface BuilderForum {
+  id: string;
+  title: string;
+  isQuestion: boolean;
+  postCount: number;
+}
+
+/** Mavzu ichidagi onlayn dars — Moodle dagi "BigBlueButton" faoliyati. */
+export interface BuilderMeeting {
+  id: string;
+  title: string;
+  startsAt: string;
+  durationMinutes: number;
+  joinUrl: string;
+}
+
 export interface BuilderTopic {
   id: string;
   title: unknown;
@@ -85,6 +106,8 @@ export interface BuilderTopic {
   lessons: BuilderLesson[];
   assignments: BuilderAssignment[];
   quizzes: BuilderQuiz[];
+  forumThreads: BuilderForum[];
+  meetings: BuilderMeeting[];
 }
 
 export interface BuilderModule {
@@ -125,6 +148,8 @@ export function CourseBuilder({
 
   /** Element tanlash oynasi qaysi mavzu uchun ochilgan. */
   const [chooserTopicId, setChooserTopicId] = useState<string | null>(null);
+  const [editingResource, setEditingResource] = useState<LessonResource | null>(null);
+  const [pendingResourceDelete, setPendingResourceDelete] = useState<string | null>(null);
   /** IMS CC paketini import qilish oynasi. */
   const [importing, setImporting] = useState(false);
 
@@ -241,6 +266,18 @@ export function CourseBuilder({
 
     reorder.mutate({ entity, orderedIds: next.map((item) => item.id), parentId });
   }
+
+  /** Resurs alohida endpoint bilan o'chiriladi (dars ichidagi element). */
+  const removeResource = useMutation({
+    mutationFn: async (id: string) => api.delete(`/courses/resources/${id}`),
+    onSuccess: async () => {
+      toast.success(t('common.deleted'));
+      setPendingResourceDelete(null);
+      await invalidate();
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof ApiClientError ? t(error.translationKey) : t('errors.internal')),
+  });
 
   const openCreate = (kind: EntityKind, parentId?: string) =>
     setEditor({
@@ -412,11 +449,32 @@ export function CourseBuilder({
                               <li
                                 key={resource.id}
                                 data-testid="resource-row"
-                                className="flex items-center gap-2 py-1 text-sm text-muted-foreground"
+                                className="flex items-center justify-between gap-2 py-1 text-sm text-muted-foreground"
                               >
-                                <Paperclip className="size-3.5 shrink-0" aria-hidden="true" />
-                                <span className="truncate">{localize(resource.title, locale)}</span>
-                                <Badge variant="outline">{t('activities.resource')}</Badge>
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <Paperclip className="size-3.5 shrink-0" aria-hidden="true" />
+                                  <span className="truncate">
+                                    {localize(resource.title, locale)}
+                                  </span>
+                                  <Badge variant="outline">{t('activities.resource')}</Badge>
+                                </div>
+                                {/* Resurs tartibi dars sahifasida boshqariladi —
+                                    bu yerda faqat tahrirlash va o'chirish */}
+                                <div className="flex shrink-0 items-center gap-0.5">
+                                  <IconButton
+                                    label={t('common.edit')}
+                                    onClick={() => setEditingResource(resource)}
+                                  >
+                                    <Pencil className="size-3.5" aria-hidden="true" />
+                                  </IconButton>
+                                  <IconButton
+                                    label={t('common.delete')}
+                                    destructive
+                                    onClick={() => setPendingResourceDelete(resource.id)}
+                                  >
+                                    <Trash2 className="size-3.5" aria-hidden="true" />
+                                  </IconButton>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -477,6 +535,46 @@ export function CourseBuilder({
                             <Badge variant="warning">{t('courses.DRAFT')}</Badge>
                           ) : null}
                         </div>
+                      </li>
+                    ))}
+
+                    {topic.forumThreads.map((forum) => (
+                      <li
+                        key={forum.id}
+                        data-testid="forum-row"
+                        className="flex flex-wrap items-center gap-2 px-3 py-2"
+                      >
+                        <MessageSquare
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <Link
+                          href={`/courses/${courseId}/forum/${forum.id}` as '/courses'}
+                          className="truncate text-sm hover:underline"
+                        >
+                          {forum.title}
+                        </Link>
+                        <Badge variant="outline">{t('activities.forum')}</Badge>
+                      </li>
+                    ))}
+
+                    {topic.meetings.map((meeting) => (
+                      <li
+                        key={meeting.id}
+                        data-testid="meeting-row"
+                        className="flex flex-wrap items-center gap-2 px-3 py-2"
+                      >
+                        <Video
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <Link href="/classroom" className="truncate text-sm hover:underline">
+                          {meeting.title}
+                        </Link>
+                        <Badge variant="outline">{t('activities.meeting')}</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {meeting.durationMinutes} {t('courses.minutes')}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -631,6 +729,41 @@ export function CourseBuilder({
           onCreated={() => void invalidate()}
         />
       ) : null}
+
+      {editingResource ? (
+        <ResourceEditDialog
+          resource={editingResource}
+          courseId={courseId}
+          onClose={() => setEditingResource(null)}
+          onSaved={() => invalidate()}
+        />
+      ) : null}
+
+      <Dialog
+        open={pendingResourceDelete !== null}
+        onOpenChange={(open) => !open && setPendingResourceDelete(null)}
+      >
+        {pendingResourceDelete ? (
+          <DialogContent size="sm" closeLabel={t('common.close')}>
+            <DialogHeader>
+              <DialogTitle>{t('courses.deleteTitle')}</DialogTitle>
+              <DialogDescription>{t('courses.deleteWarning_resource')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setPendingResourceDelete(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                loading={removeResource.isPending}
+                onClick={() => removeResource.mutate(pendingResourceDelete)}
+              >
+                {t('common.delete')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : null}
+      </Dialog>
 
       {/* --- O'chirishni tasdiqlash --- */}
       <Dialog
