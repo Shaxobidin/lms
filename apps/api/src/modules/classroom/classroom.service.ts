@@ -42,6 +42,7 @@ export class ClassroomService {
     const meeting = await this.prisma.db.meeting.create({
       data: {
         courseId: input.courseId,
+        topicId: input.topicId ?? null,
         classSessionId: input.classSessionId ?? null,
         createdById: actor.id,
         provider: this.provider.name,
@@ -111,9 +112,11 @@ export class ClassroomService {
     const isTeacher = actor.scope.courseIds.includes(meeting.courseId);
     if (!enrolled && !isTeacher) throw AppException.forbidden('classroom:read:own');
 
-    // Dars boshlanishidan 15 daqiqa oldin kirish mumkin
+    // Talaba dars boshlanishidan 15 daqiqa oldin kira oladi. O'qituvchi
+    // (moderator) esa xonani istalgan vaqtda ochadi — materialni tekshirish va
+    // dars oldidan tayyorgarlik uchun (Moodle/BBB dagi kabi).
     const opensAt = new Date(meeting.startsAt.getTime() - 15 * 60_000);
-    if (new Date() < opensAt) {
+    if (!isTeacher && new Date() < opensAt) {
       throw AppException.businessRule('errors.meeting_not_started', {
         opensAt: opensAt.toISOString(),
       });

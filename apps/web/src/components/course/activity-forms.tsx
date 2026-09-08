@@ -119,11 +119,15 @@ function useCreate(onCreated: () => void, onClose: () => void) {
   };
 }
 
+/** Mavzuda dars bo'lmasa, material shu nomli darsga joylanadi. */
+const MATERIALS_LESSON_TITLE = 'Materiallar';
+
 // --- Resurs -----------------------------------------------------------------
 
 function ResourceForm({
   action,
   courseId,
+  topicId,
   lessonId,
   onClose,
   onCreated,
@@ -143,8 +147,22 @@ function ResourceForm({
 
   const create = useMutation({
     mutationFn: async () => {
+      // Resurs modelda darsga bog'lanadi. Moodle da esa material to'g'ridan-to'g'ri
+      // mavzuda turadi — mavzuda dars bo'lmasa, material uchun konteyner dars
+      // yaratamiz (faqat saqlashda, foydalanuvchi bekor qilsa hech narsa qolmaydi).
+      let targetLessonId = lessonId;
+      if (!targetLessonId && topicId) {
+        const lesson = await api.post<{ id: string }>('/courses/lessons', {
+          topicId,
+          title: { 'uz-Latn': MATERIALS_LESSON_TITLE },
+          durationMinutes: 0,
+          isPublished: true,
+        });
+        targetLessonId = lesson.data.id;
+      }
+
       const body: Record<string, unknown> = {
-        lessonId,
+        lessonId: targetLessonId,
         kind: action.kind,
         title,
         isRequired,
@@ -163,12 +181,25 @@ function ResourceForm({
         const file = picked[0];
         if (!file) throw new Error('file_missing');
         setProgress(0);
+        const isScorm = action.kind === 'SCORM';
         const uploaded = await uploadFile(file, {
-          purpose: 'COURSE_CONTENT',
+          purpose: isScorm ? 'SCORM' : 'COURSE_CONTENT',
           courseId,
           onProgress: (fraction) => setProgress(fraction),
         });
         body['fileObjectId'] = uploaded.fileObjectId;
+
+        // SCORM zip'i shunchaki biriktirilsa ochilmaydi: paket ochib,
+        // manifest o'qilishi kerak — shundagina pleyer ishlaydi va natija
+        // jurnalga tushadi (F-05).
+        if (isScorm) {
+          const imported = await api.post<{ id: string }>('/content/scorm/import', {
+            courseId,
+            fileObjectId: uploaded.fileObjectId,
+            title: title['uz-Latn'] ?? file.name,
+          });
+          body['meta'] = { ...(body['meta'] as object), scormPackageId: imported.data.id };
+        }
       }
 
       if (action.source === 'files') {
@@ -201,6 +232,7 @@ function ResourceForm({
   });
 
   const ready =
+    Boolean(lessonId || topicId) &&
     Boolean(title['uz-Latn']?.trim()) &&
     (action.source === 'url'
       ? url.startsWith('http')
@@ -418,7 +450,7 @@ function QuizForm({ courseId, topicId, onClose, onCreated }: CommonProps) {
 
 // --- Forum -------------------------------------------------------------------
 
-function ForumForm({ courseId, onClose, onCreated }: CommonProps) {
+function ForumForm({ courseId, topicId, onClose, onCreated }: CommonProps) {
   const t = useTranslations();
   const handlers = useCreate(onCreated, onClose);
 
@@ -427,7 +459,8 @@ function ForumForm({ courseId, onClose, onCreated }: CommonProps) {
   const [isQuestion, setIsQuestion] = useState(false);
 
   const create = useMutation({
-    mutationFn: async () => api.post('/forum/threads', { courseId, title, body, isQuestion }),
+    mutationFn: async () =>
+      api.post('/forum/threads', { courseId, topicId: topicId ?? null, title, body, isQuestion }),
     ...handlers,
   });
 
@@ -473,7 +506,7 @@ function ForumForm({ courseId, onClose, onCreated }: CommonProps) {
 
 // --- Onlayn dars -------------------------------------------------------------
 
-function MeetingForm({ courseId, onClose, onCreated }: CommonProps) {
+function MeetingForm({ courseId, topicId, onClose, onCreated }: CommonProps) {
   const t = useTranslations();
   const handlers = useCreate(onCreated, onClose);
 
@@ -486,6 +519,7 @@ function MeetingForm({ courseId, onClose, onCreated }: CommonProps) {
     mutationFn: async () =>
       api.post('/classroom/meetings', {
         courseId,
+        topicId: topicId ?? null,
         title,
         startsAt: new Date(startsAt).toISOString(),
         durationMinutes,

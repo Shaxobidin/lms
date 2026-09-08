@@ -3104,6 +3104,50 @@ check(
 const anonRow = surveyId ? await admin(`/admin/audit-log?resource=survey&limit=1`) : { ok: true };
 check('So`rovnoma auditga tushdi', anonRow.ok, `status ${anonRow.status}`);
 
+// =============================================================================
+// 16. ONLAYN DARS: KIRISH OYNASI
+// =============================================================================
+console.log('\n16. Onlayn dars: talaba 15 daqiqa oldin, o`qituvchi istalgan vaqtda');
+
+// Dars 3 soatdan keyin — talaba uchun hali erta, o'qituvchi uchun ochiq
+const meetingStartsAt = new Date(Date.now() + 3 * 60 * 60_000).toISOString();
+const createdMeeting = await teacher('/classroom/meetings', {
+  method: 'POST',
+  body: JSON.stringify({
+    courseId,
+    title: 'Kirish oynasi sinovi',
+    startsAt: meetingStartsAt,
+    durationMinutes: 60,
+  }),
+});
+const meetingId = createdMeeting.body?.data?.id;
+check(
+  'O`qituvchi onlayn dars yaratdi (3 soatdan keyin)',
+  createdMeeting.ok && Boolean(meetingId),
+  `status ${createdMeeting.status}`,
+);
+
+const studentJoin = meetingId
+  ? await student(`/classroom/meetings/${meetingId}/join`, { method: 'POST' })
+  : { status: 0, body: null };
+check(
+  'Talaba erta kira olmaydi → errors.meeting_not_started',
+  studentJoin.status === 422 &&
+    JSON.stringify(studentJoin.body ?? {}).includes('meeting_not_started'),
+  `status ${studentJoin.status}`,
+);
+
+const teacherJoin = meetingId
+  ? await teacher(`/classroom/meetings/${meetingId}/join`, { method: 'POST' })
+  : { ok: false, status: 0, body: null };
+check(
+  'O`qituvchi xonani oldindan ochadi (moderator sifatida)',
+  teacherJoin.ok &&
+    Boolean(teacherJoin.body?.data?.joinUrl) &&
+    teacherJoin.body?.data?.isModerator === true,
+  `status ${teacherJoin.status}, moderator ${teacherJoin.body?.data?.isModerator}`,
+);
+
 mockServer.close();
 
 const passed = results.filter((item) => item.ok).length;

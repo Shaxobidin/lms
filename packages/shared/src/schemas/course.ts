@@ -138,6 +138,11 @@ export const resourceMetaSchema = z.object({
     .optional(),
   /** `EMBED` — iframe balandligi (piksel). */
   embedHeight: z.coerce.number().int().min(200).max(2000).optional(),
+  /**
+   * `SCORM` — import qilingan paket. Zip faylning o'zi resursga biriktiriladi,
+   * ammo ishga tushirish va natijani jurnalga yozish shu paket orqali bo'ladi.
+   */
+  scormPackageId: uuidSchema.optional(),
 });
 
 /**

@@ -175,6 +175,7 @@ export class MessagingService {
       const created = await tx.forumThread.create({
         data: {
           courseId: input.courseId,
+          topicId: input.topicId ?? null,
           authorId: actor.id,
           title: this.sanitizer.stripHtml(input.title).slice(0, 300),
           isQuestion: input.isQuestion,

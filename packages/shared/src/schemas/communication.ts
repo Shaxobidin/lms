@@ -31,6 +31,8 @@ export const createAnnouncementSchema = z
 
 export const createForumThreadSchema = z.object({
   courseId: uuidSchema,
+  /** Moodle uslubi: forum mavzu (topic) ichida ham turishi mumkin. */
+  topicId: uuidSchema.nullable().optional(),
   title: z.string().trim().min(3).max(300),
   body: richTextSchema,
   /** Savol-javob rejimi: eng yaxshi javob belgilanadi. */
@@ -78,6 +80,8 @@ export const telegramLinkSchema = z.object({
 
 export const createMeetingSchema = z.object({
   courseId: uuidSchema,
+  /** Moodle uslubi: onlayn dars mavzu (topic) ichida ham turishi mumkin. */
+  topicId: uuidSchema.nullable().optional(),
   classSessionId: uuidSchema.nullable().optional(),
   title: z.string().trim().min(3).max(200),
   startsAt: z.coerce.date(),
