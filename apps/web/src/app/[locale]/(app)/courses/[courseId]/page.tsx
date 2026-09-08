@@ -15,8 +15,8 @@ import {
   BookOpen,
   CheckCircle2,
   ChevronDown,
-  ClipboardList,
   Circle,
+  ClipboardList,
   FileText,
   ListChecks,
   Users,
@@ -71,8 +71,35 @@ interface CourseStructure {
     title: unknown;
     position: number;
     isPublished: boolean;
-    topics: Array<{ id: string; title: unknown; position: number; lessons: LessonNode[] }>;
+    topics: Array<{
+      id: string;
+      title: unknown;
+      position: number;
+      lessons: LessonNode[];
+      assignments: TopicAssignment[];
+      quizzes: TopicQuiz[];
+    }>;
   }>;
+}
+
+/** Mavzu ichidagi topshiriq (Moodle: "Topshiriq" faoliyati). */
+interface TopicAssignment {
+  id: string;
+  title: unknown;
+  kind: string;
+  dueAt: string;
+  maxScore: string | number;
+  isPublished: boolean;
+}
+
+/** Mavzu ichidagi test (Moodle: "Test" faoliyati). */
+interface TopicQuiz {
+  id: string;
+  title: unknown;
+  controlType: string;
+  durationMinutes: number;
+  isPublished: boolean;
+  _count: { questions: number };
 }
 
 interface AssignmentItem {
@@ -274,6 +301,25 @@ export default function CoursePage() {
           <LtiCoursePanel courseId={courseId} />
           <CourseBuilder courseId={courseId} modules={course.modules} locale={locale} />
         </>
+      ) : null}
+
+      {tab === 'content' && !editing && course.modules.length > 0 ? (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <h2 className="text-sm font-medium">{t('courses.topicHeadings')}</h2>
+            <ol className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
+              {course.modules.flatMap((module) =>
+                module.topics.map((topic) => (
+                  <li key={topic.id}>
+                    <a href={`#topic-${topic.id}`} className="text-primary hover:underline">
+                      {localize(topic.title, locale)}
+                    </a>
+                  </li>
+                )),
+              )}
+            </ol>
+          </CardContent>
+        </Card>
       ) : null}
 
       {tab === 'content' && !editing ? (
@@ -501,7 +547,7 @@ function ModuleAccordion({
       {open ? (
         <CardContent className="space-y-3">
           {module.topics.map((topic) => (
-            <div key={topic.id}>
+            <div key={topic.id} id={`topic-${topic.id}`} className="scroll-mt-20">
               <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {localize(topic.title, locale)}
               </p>
@@ -526,6 +572,9 @@ function ModuleAccordion({
                           />
                         )}
                         <span className="truncate">{localize(lesson.title, locale)}</span>
+                        <Badge variant="outline" className="shrink-0">
+                          {t('activities.lesson')}
+                        </Badge>
                         {lesson.durationMinutes > 0 ? (
                           <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                             {lesson.durationMinutes} {t('courses.minutes')}
@@ -535,6 +584,53 @@ function ModuleAccordion({
                     </li>
                   );
                 })}
+
+                {/* Moodle uslubi: topshiriq va testlar ham mavzu ichida */}
+                {topic.assignments.map((assignment) => (
+                  <li key={assignment.id}>
+                    <Link
+                      href={`/assignments/${assignment.id}` as '/assignments'}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                    >
+                      <ClipboardList
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{localize(assignment.title, locale)}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {t('activities.assignment')}
+                      </Badge>
+                      {!assignment.isPublished ? (
+                        <Badge variant="warning" className="shrink-0">
+                          {t('courses.DRAFT')}
+                        </Badge>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
+
+                {topic.quizzes.map((quiz) => (
+                  <li key={quiz.id}>
+                    <Link
+                      href={`/quizzes/${quiz.id}` as '/quizzes'}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                    >
+                      <ListChecks
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{localize(quiz.title, locale)}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {t('activities.quiz')}
+                      </Badge>
+                      {!quiz.isPublished ? (
+                        <Badge variant="warning" className="shrink-0">
+                          {t('courses.DRAFT')}
+                        </Badge>
+                      ) : null}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
           ))}

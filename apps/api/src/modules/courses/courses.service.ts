@@ -178,6 +178,33 @@ export class CoursesService {
                 title: true,
                 position: true,
                 bloomLevel: true,
+                // Moodle uslubi: mavzu ichida dars, topshiriq va test bir ro'yxatda
+                // ko'rinadi (F-05). Topshiriq/testda `position` yo'q — yaratilish
+                // tartibi barqaror tartib beradi.
+                assignments: {
+                  where: isTeacher ? {} : { isPublished: true },
+                  orderBy: { createdAt: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    kind: true,
+                    dueAt: true,
+                    maxScore: true,
+                    isPublished: true,
+                  },
+                },
+                quizzes: {
+                  where: isTeacher ? {} : { isPublished: true },
+                  orderBy: { createdAt: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    controlType: true,
+                    durationMinutes: true,
+                    isPublished: true,
+                    _count: { select: { questions: true } },
+                  },
+                },
                 lessons: {
                   where: isTeacher ? {} : { isPublished: true },
                   orderBy: { position: 'asc' },

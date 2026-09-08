@@ -264,7 +264,8 @@
     "resourceContentHint_text": "Text in the WYSIWYG editor, per language",
     "resourceContentHint_url": "External address (https://) and, if needed, display height",
     "resourceContentHint_file": "File details; create a new resource to replace it",
-    "embedHeight": "Height (px)"
+    "embedHeight": "Height (px)",
+    "topicHeadings": "Topic headings"
   },
   "assignments": {
     "addCriterion": "Add criterion",
@@ -1170,6 +1171,7 @@
     "labelHint": "A note or heading shown inline in the lesson",
     "labelPlaceholder": "In this section ...",
     "labelText": "Text",
+    "lesson": "Lesson",
     "meeting": "Online session",
     "meetingHint": "Virtual classroom (Jitsi or BigBlueButton); attendance is recorded",
     "nothingFound": "Nothing found",

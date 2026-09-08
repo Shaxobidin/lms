@@ -264,7 +264,8 @@
     "resourceContentHint_text": "Матн WYSIWYG муҳаррирда, ҳар бир тил учун алоҳида",
     "resourceContentHint_url": "Ташқи манзил (https://) ва, керак бўлса, кўрсатиш баландлиги",
     "resourceContentHint_file": "Файл маълумоти; алмаштириш учун янги ресурс яратинг",
-    "embedHeight": "Баландлик (px)"
+    "embedHeight": "Баландлик (px)",
+    "topicHeadings": "Мавзулар сарлавҳалари"
   },
   "assignments": {
     "addCriterion": "Мезон қўшиш",
@@ -1170,6 +1171,7 @@
     "labelHint": "Дарсда жойида кўринадиган изоҳ ёки сарлавҳа",
     "labelPlaceholder": "Ушбу бо`лимда ...",
     "labelText": "Матн",
+    "lesson": "Дарс",
     "meeting": "Онлайн дарс",
     "meetingHint": "Виртуал синф (Jitsi ёки BigBlueButton); давомат автоматик ёзилади",
     "nothingFound": "Ҳеч нарса топилмади",

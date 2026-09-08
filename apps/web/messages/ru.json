@@ -264,7 +264,8 @@
     "resourceContentHint_text": "Текст в WYSIWYG-редакторе, отдельно для каждого языка",
     "resourceContentHint_url": "Внешний адрес (https://) и при необходимости высота отображения",
     "resourceContentHint_file": "Сведения о файле; для замены создайте новый ресурс",
-    "embedHeight": "Высота (px)"
+    "embedHeight": "Высота (px)",
+    "topicHeadings": "Заголовки тем"
   },
   "assignments": {
     "addCriterion": "Добавить критерий",
@@ -1170,6 +1171,7 @@
     "labelHint": "Пояснение или заголовок прямо в занятии",
     "labelPlaceholder": "В этом разделе ...",
     "labelText": "Текст",
+    "lesson": "Урок",
     "meeting": "Онлайн-занятие",
     "meetingHint": "Виртуальный класс (Jitsi или BigBlueButton); посещаемость записывается",
     "nothingFound": "Ничего не найдено",

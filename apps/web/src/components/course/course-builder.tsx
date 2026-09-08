@@ -19,12 +19,14 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   Eye,
   EyeOff,
   FileText,
   Download,
   FolderPlus,
   LayoutGrid,
+  ListChecks,
   ListPlus,
   Pencil,
   PackageOpen,
@@ -59,11 +61,28 @@ export interface BuilderLesson {
   isPublished: boolean;
 }
 
+/** Mavzu ichidagi topshiriq — Moodle dagi "Topshiriq" faoliyati. */
+export interface BuilderAssignment {
+  id: string;
+  title: unknown;
+  isPublished: boolean;
+}
+
+/** Mavzu ichidagi test — Moodle dagi "Test" faoliyati. */
+export interface BuilderQuiz {
+  id: string;
+  title: unknown;
+  isPublished: boolean;
+  _count: { questions: number };
+}
+
 export interface BuilderTopic {
   id: string;
   title: unknown;
   position: number;
   lessons: BuilderLesson[];
+  assignments: BuilderAssignment[];
+  quizzes: BuilderQuiz[];
 }
 
 export interface BuilderModule {
@@ -350,6 +369,7 @@ export function CourseBuilder({
                           >
                             {localize(lesson.title, locale)}
                           </Link>
+                          <Badge variant="outline">{t('activities.lesson')}</Badge>
                           {!lesson.isPublished ? (
                             <Badge variant="warning">{t('courses.DRAFT')}</Badge>
                           ) : null}
@@ -383,6 +403,62 @@ export function CourseBuilder({
                           onEdit={() => openEdit('lesson', lesson)}
                           onDelete={() => setPendingDelete({ kind: 'lesson', id: lesson.id })}
                         />
+                      </li>
+                    ))}
+
+                    {/* Topshiriq va testlar ham shu mavzuda ko'rinadi (Moodle uslubi).
+                        Ular alohida sahifalarda sozlanadi, shuning uchun tartiblash
+                        va nashr tugmalari o'rniga to'g'ridan-to'g'ri havola. */}
+                    {topic.assignments.map((assignment) => (
+                      <li
+                        key={assignment.id}
+                        data-testid="assignment-row"
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <ClipboardList
+                            className="size-4 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                          <Link
+                            href={`/assignments/${assignment.id}/settings` as '/assignments'}
+                            className="truncate text-sm hover:underline"
+                          >
+                            {localize(assignment.title, locale)}
+                          </Link>
+                          <Badge variant="outline">{t('activities.assignment')}</Badge>
+                          {!assignment.isPublished ? (
+                            <Badge variant="warning">{t('courses.DRAFT')}</Badge>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+
+                    {topic.quizzes.map((quiz) => (
+                      <li
+                        key={quiz.id}
+                        data-testid="quiz-row"
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <ListChecks
+                            className="size-4 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                          <Link
+                            href={`/quizzes/${quiz.id}/questions` as '/quizzes'}
+                            className="truncate text-sm hover:underline"
+                          >
+                            {localize(quiz.title, locale)}
+                          </Link>
+                          <Badge variant="outline">{t('activities.quiz')}</Badge>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {quiz._count.questions} {t('quizzes.question').toLowerCase()}
+                          </span>
+                          {!quiz.isPublished ? (
+                            <Badge variant="warning">{t('courses.DRAFT')}</Badge>
+                          ) : null}
+                        </div>
                       </li>
                     ))}
                   </ul>

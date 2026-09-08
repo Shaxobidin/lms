@@ -264,7 +264,8 @@
     "resourceContentHint_text": "Matn WYSIWYG muharrirda, har bir til uchun alohida",
     "resourceContentHint_url": "Tashqi manzil (https://) va, kerak bo'lsa, ko'rsatish balandligi",
     "resourceContentHint_file": "Fayl ma'lumoti; almashtirish uchun yangi resurs yarating",
-    "embedHeight": "Balandlik (px)"
+    "embedHeight": "Balandlik (px)",
+    "topicHeadings": "Mavzular sarlavhalari"
   },
   "assignments": {
     "addCriterion": "Mezon qo'shish",
@@ -1170,6 +1171,7 @@
     "labelHint": "Darsda joyida ko'rinadigan izoh yoki sarlavha",
     "labelPlaceholder": "Ushbu bo`limda ...",
     "labelText": "Matn",
+    "lesson": "Dars",
     "meeting": "Onlayn dars",
     "meetingHint": "Virtual sinf (Jitsi yoki BigBlueButton); davomat avtomatik yoziladi",
     "nothingFound": "Hech narsa topilmadi",
